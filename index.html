@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Alien Reaction</title>
+  <script src="webxdc.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background-color: #080a0f; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; color: #d0e0f0; touch-action: none; }
+
+    #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    canvas { background: #0b0e14; display: block; image-rendering: pixelated; }
+
+    #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+
+    .hud-header { display: flex; justify-content: space-between; align-items: flex-start; text-shadow: 0 0 6px rgba(0,225,255,0.6); }
+    .hud-box { background: rgba(10, 16, 26, 0.75); border: 1px solid #1e3a5f; padding: 10px 16px; border-radius: 4px; backdrop-filter: blur(4px); }
+    .hud-title { font-size: 11px; color: #5a8ab8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .hud-value { font-size: 20px; font-weight: bold; color: #00f0ff; }
+
+    #squad-box { min-width: 160px; }
+    .squad-row { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 3px; }
+    .squad-name { width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #94a3b8; }
+    .squad-bar-track { flex: 1; height: 6px; background: #10192a; border-radius: 3px; overflow: hidden; }
+    .squad-bar-fill { height: 100%; background: #33ff66; transition: width 0.15s linear; }
+    .squad-row.downed .squad-bar-fill { background: #ff3366 !important; }
+    .squad-row.dead .squad-name { color: #475569; text-decoration: line-through; }
+    .squad-row.host .squad-name::after { content: " ★"; color: #ffcc00; }
+
+    #lobby-modal { position: absolute; z-index: 100; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 8, 15, 0.92); display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; overflow-y: auto; }
+    .lobby-card { background: #0f1724; border: 1px solid #1d3557; width: 90%; max-width: 480px; border-radius: 8px; padding: 24px; box-shadow: 0 0 30px rgba(0,200,255,0.15); margin: 24px 0; }
+    .lobby-title { font-size: 24px; font-weight: 800; color: #00f0ff; letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 8px; }
+    .lobby-sub { font-size: 12px; color: #64748b; text-align: center; margin-bottom: 20px; }
+
+    .class-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; margin-bottom: 20px; }
+    .class-btn { background: #14213d; border: 1px solid #1e3a5f; color: #94a3b8; padding: 12px 8px; border-radius: 6px; text-align: center; cursor: pointer; transition: all 0.2s ease; }
+    .class-btn.selected { background: #1d3557; border-color: #00f0ff; color: #00f0ff; box-shadow: 0 0 10px rgba(0,240,255,0.3); }
+    .class-btn .name { font-weight: bold; font-size: 14px; display: block; }
+    .class-btn .role { font-size: 10px; opacity: 0.7; }
+
+    .peer-list { background: #090d16; border: 1px solid #152238; border-radius: 4px; padding: 10px; max-height: 130px; overflow-y: auto; margin-bottom: 20px; font-size: 12px; }
+    .peer-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #10192a; }
+    .peer-item:last-child { border-bottom: none; }
+    .badge { padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+    .badge-you { background: #00f0ff; color: #000; }
+    .badge-host { background: #ffcc00; color: #000; margin-left: 4px; }
+
+    .btn-start { width: 100%; background: #00f0ff; color: #05080f; font-weight: bold; font-size: 16px; padding: 14px; border: none; border-radius: 6px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 0 15px rgba(0,240,255,0.4); }
+    .btn-start:hover { background: #33f3ff; }
+
+    #status-line { font-size: 11px; color: #64748b; text-align: center; margin-top: 12px; }
+
+    /* Downed / revive overlays */
+    #downed-banner {
+      position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%);
+      background: rgba(40, 4, 10, 0.85); border: 1px solid #ff3366; color: #ff8fa8;
+      padding: 10px 22px; border-radius: 6px; font-size: 13px; text-transform: uppercase;
+      letter-spacing: 1px; display: none; pointer-events: none; text-align: center;
+    }
+    #downed-banner .bleed-track { width: 180px; height: 5px; background: #1a0a0e; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+    #downed-banner .bleed-fill { height: 100%; background: #ff3366; width: 100%; }
+    #vignette { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; box-shadow: inset 0 0 140px 40px rgba(255,0,40,0); transition: box-shadow 0.4s ease; }
+
+    #end-modal { position: absolute; z-index: 110; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 8, 15, 0.92); display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; }
+    .end-card { background: #0f1724; border: 1px solid #1d3557; width: 90%; max-width: 420px; border-radius: 8px; padding: 28px; text-align: center; }
+    .end-title { font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+    .end-title.wipe { color: #ff3366; }
+    .end-title.complete { color: #33ff66; }
+    .end-stats { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+
+    /* Touch controls */
+    #touchControls { position: absolute; bottom: 0; left: 0; right: 0; height: 0; pointer-events: none; z-index: 50; }
+    .joyZone { position: absolute; width: 27vmin; height: 27vmin; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: rgba(0, 240, 255, 0.08); border: 1.5px solid rgba(0, 240, 255, 0.35); border-radius: 50%; pointer-events: all; touch-action: none; }
+    #moveZone { left: calc(16px + env(safe-area-inset-left, 0px)); }
+    #aimZone { right: calc(16px + env(safe-area-inset-right, 0px)); }
+    .joyThumb { width: 38%; height: 38%; background: radial-gradient(#00f0ff, #007a99); border: 1.5px solid rgba(0, 240, 255, 0.8); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 12px rgba(0, 240, 255, 0.5); }
+
+    #actionBtn {
+      position: absolute; bottom: calc(20vmin + env(safe-area-inset-bottom, 0px)); left: 86%; transform: translateX(-50%);
+      width: 68px; height: 68px; border-radius: 50%; pointer-events: all; touch-action: none;
+      background: rgba(255, 204, 0, 0.12); border: 2px solid rgba(255, 204, 0, 0.55);
+      color: #ffcc00; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    #actionBtn.active { background: rgba(255, 204, 0, 0.45); transform: translateX(-50%) scale(0.92); }
+    #actionBtn.ready { border-color: #ffcc00; box-shadow: 0 0 14px rgba(255, 204, 0, 0.5); }
+    #actionBtn.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+      <div class="hud-header">
+        <div class="hud-box" id="squad-box">
+          <div class="hud-title">Squad Status</div>
+          <div id="squad-rows"></div>
+        </div>
+        <div class="hud-box" style="text-align: center;">
+          <div class="hud-title">Alien Threat</div>
+          <div class="hud-value" id="hud-wave" style="color: #ff3366;">WAVE 1</div>
+        </div>
+        <div class="hud-box" style="text-align: right;">
+          <div class="hud-title">Xenos Purged</div>
+          <div class="hud-value" id="hud-kills">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="vignette"></div>
+    <div id="downed-banner">
+      DOWNED — hold position for rescue
+      <div class="bleed-track"><div class="bleed-fill" id="bleed-fill"></div></div>
+    </div>
+
+    <!-- Twin-stick touch controls -->
+    <div id="touchControls">
+      <div id="moveZone" class="joyZone"><div id="moveThumb" class="joyThumb"></div></div>
+      <div id="aimZone" class="joyZone"><div id="aimThumb" class="joyThumb"></div></div>
+      <div id="actionBtn">HOLD</div>
+    </div>
+
+    <div id="lobby-modal">
+      <div class="lobby-card">
+        <div class="lobby-title">Drop Ship Tactical</div>
+        <div class="lobby-sub">Webxdc Co-Op Swarm Shooter</div>
+
+        <div style="font-size: 11px; color: #5a8ab8; margin-bottom: 6px; text-transform: uppercase;">Select Class</div>
+        <div class="class-selector" id="class-selector"></div>
+
+        <div style="font-size: 11px; color: #5a8ab8; margin-bottom: 6px; text-transform: uppercase;">Difficulty <span style="text-transform: none; color: #475569;">(whoever deploys the squad picks for everyone)</span></div>
+        <div class="class-selector" id="difficulty-selector"></div>
+
+        <div style="font-size: 11px; color: #5a8ab8; margin-bottom: 6px; text-transform: uppercase;">Connected Marines</div>
+        <div class="peer-list" id="peer-list"></div>
+
+        <button class="btn-start" id="btn-start">Deploy Squad</button>
+        <div id="status-line">Waiting for connection…</div>
+      </div>
+    </div>
+
+    <div id="end-modal">
+      <div class="end-card">
+        <div class="end-title" id="end-title">Squad Wiped</div>
+        <div class="end-stats" id="end-stats"></div>
+        <button class="btn-start" id="btn-again">Return to Lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Browser mock for local testing (ignored inside real messengers) ---
+    if (typeof window.webxdc === "undefined") {
+      const mockUpdateLog = [];
+      window.webxdc = {
+        selfAddr: "local_" + Math.floor(Math.random() * 9000 + 1000),
+        selfName: "Marine_" + Math.floor(Math.random() * 90 + 10),
+        joinRealtimeChannel: function () {
+          const channel = {
+            _listeners: [],
+            setListener: function (cb) { this._listeners = [cb]; },
+            send: function (data) {
+              setTimeout(() => this._listeners.forEach(l => l(data)), 0);
+            },
+            leave: function () {}
+          };
+          return channel;
+        },
+        sendUpdate: function (update) {
+          mockUpdateLog.push(update);
+          setTimeout(() => { if (this._updateCb) this._updateCb(update); }, 0);
+        },
+        setUpdateListener: function (cb) {
+          this._updateCb = cb;
+          mockUpdateLog.forEach(u => setTimeout(() => cb(u), 0));
+        }
+      };
+    }
+
+    // --- Constants & State ---
+    const CANVAS = document.getElementById("gameCanvas");
+    const CTX = CANVAS.getContext("2d");
+
+    let canvasW = window.innerWidth;
+    let canvasH = window.innerHeight;
+    CANVAS.width = canvasW;
+    CANVAS.height = canvasH;
+
+    window.addEventListener("resize", () => {
+      canvasW = window.innerWidth;
+      canvasH = window.innerHeight;
+      CANVAS.width = canvasW;
+      CANVAS.height = canvasH;
+    });
+
+    // --- Tunable balance, loaded from the bundled config.json ---
+    // DEFAULT_CONFIG mirrors config.json exactly; it's the fallback used if the fetch
+    // ever fails (e.g. some unusual host environment), so the game always plays the same
+    // either way. To retune anything — health, fire rate, wave timing, enemy speed, spawn
+    // weights, or which of the four movement behaviors an enemy uses — edit config.json
+    // and re-zip the .xdc. No code changes needed for any of that.
+    const DEFAULT_CONFIG = {
+      world: { width: 2600, height: 1900, minZoom: 0.55, maxZoom: 1.9 },
+      camera: { followLerp: 0.1 },
+      classes: {
+        officer:    { name: "Officer",    hp: 120, speed: 3.2, fireRate: 140, damage: 22, color: "#00f0ff" },
+        specialist: { name: "Specialist", hp: 90,  speed: 4.0, fireRate: 80,  damage: 12, color: "#ffcc00" },
+        medic:      { name: "Medic",      hp: 100, speed: 3.5, fireRate: 180, damage: 18, color: "#33ff66", partyHealer: true }
+      },
+      difficulty: {
+        default: "normal",
+        levels: {
+          easy:   { name: "Easy",   turretHpMultiplier: 1.6, lureCount: 3, alienHpMultiplier: 0.85, alienSpawnIntervalMultiplier: 1.15 },
+          normal: { name: "Normal", turretHpMultiplier: 1.0, lureCount: 2, alienHpMultiplier: 1.0,  alienSpawnIntervalMultiplier: 1.0 },
+          hard:   { name: "Hard",   turretHpMultiplier: 0.7, lureCount: 1, alienHpMultiplier: 1.2,  alienSpawnIntervalMultiplier: 0.85 }
+        }
+      },
+      revive: { radius: 46, progressNeeded: 100, ratePerFrame: 1.1, decayPerFrame: 0.6 },
+      downed: { bleedOutFrames: 1200, speedMultiplier: 0.35, reviveHpFraction: 0.5 },
+      waves: { killsPerWaveStep: 15, targetWave: 6, maxConcurrentAliens: 26, spawnTimerFrames: { base: 120, perWaveReduction: 10, minimum: 30 } },
+      hive: { hp: 900, speed: 0.75, radius: 46, fleeMargin: 60, spawnIntervalFrames: 70, maxConcurrentAliensDuringHive: 40 },
+      aliens: {
+        drone:  { type: 0, behavior: "chase", hp: { base: 40, perWave: 8 }, speed: { min: 1.8, variance: 0.8 }, radius: 12, contactDamagePerFrame: 0.4, spawnWeight: { weight: 55, minWave: 1 } },
+        brute:  { type: 1, behavior: "chase", hp: { base: 140, perWave: 14 }, speed: { min: 1.1, variance: 0.3 }, radius: 20, contactDamagePerFrame: 0.4, spawnWeight: { weight: 12, minWave: 2 } },
+        boomer: { type: 2, behavior: "rushAndDetonate", hp: { base: 30, perWave: 4 }, speed: { min: 2.3, variance: 0.5 }, radius: 13, spawnWeight: { weight: 18, minWave: 2 }, triggerRadius: 60, fuseFrames: 50, explosionRadius: 75, explosionDamage: 45 },
+        poison: { type: 3, behavior: "chaseAndTrail", hp: { base: 50, perWave: 6 }, speed: { min: 1.0, variance: 0.3 }, radius: 14, contactDamagePerFrame: 0.4, spawnWeight: { weight: 15, minWave: 3 }, trailIntervalFrames: 12, patchRadius: 26, patchLifeFrames: 660, patchDamagePerFrame: 0.28 }
+      },
+      interactables: {
+        holdToActivateFrames: 60,
+        walls: [
+          { id: "wall_north", x: 0.7, y: 0.05, width: 20, height: 300, rotation: 240 },
+          { id: "wall_angled", x: 0.6, y: 0.25, width: 20, height: 300, rotation: 60 }
+        ],
+        doors: [
+          { id: "door_mid", x: 0.8, y: 0.2, width: 18, height: 200, openDurationFrames: 300, waveSize: 10, waveMinAlienType: 0, interactRadius: 70, rotation: 60 }
+        ],
+        turretPads: [
+          { id: "turret_north", x: 0.5, y: 0.1 },
+          { id: "turret_south", x: 0.5, y: 0.9 }
+        ],
+        turret: { baseHp: 140, range: 340, visionConeDegrees: 10, fireIntervalFrames: 18, pelletsPerBurst: 3, spreadDegrees: 14, damagePerPellet: 9, radius: 16, contactDamagePerFrame: 0.4, interactRadius: 55 },
+        lurePads: [
+          { id: "lure_west", x: 0.12, y: 0.5 },
+          { id: "lure_east", x: 0.88, y: 0.5 },
+          { id: "lure_north", x: 0.5, y: 0.15 }
+        ],
+        lure: { durationFrames: 600, overridePlayerRadius: 28, pullRadius: 500, radius: 14, interactRadius: 55 },
+        medStations: [
+          { id: "medstation_1", x: 0.3, y: 0.75 }
+        ],
+        medStation: { interactRadius: 50, radius: 18 }
+      }
+    };
+
+    let CONFIG = DEFAULT_CONFIG;
+    let CLASSES, CLASS_KEYS, WORLD_W, WORLD_H, MIN_ZOOM, MAX_ZOOM;
+    let MAX_ALIENS, HIVE_MAX_ALIENS, HIVE_SPAWN_INTERVAL, HIVE_FLEE_MARGIN;
+    let REVIVE_RADIUS, REVIVE_NEEDED, REVIVE_RATE, REVIVE_DECAY;
+    let BLEED_MAX, DOWNED_SPEED_MULT, REVIVE_HP_FRACTION;
+    let TARGET_WAVE, KILLS_PER_WAVE_STEP, WAVE_SPAWN_BASE, WAVE_SPAWN_PER_WAVE_REDUCTION, WAVE_SPAWN_MIN;
+    let CAMERA_FOLLOW_LERP;
+    let ALIEN_DEFS_BY_TYPE = {};   // numeric type -> config entry (drone/brute/boomer/poison/hive, all shapes unified)
+    let ALIEN_SPAWN_POOL = [];     // entries from ALIEN_DEFS_BY_TYPE that have a spawnWeight
+    let DIFFICULTY_LEVELS, DIFFICULTY_KEYS, DEFAULT_DIFFICULTY;
+    let INTERACTABLES_CFG;         // raw cfg.interactables, read directly by name where used
+
+    function deriveConfig(cfg) {
+      CONFIG = cfg;
+      CLASSES = cfg.classes;
+      CLASS_KEYS = Object.keys(cfg.classes);
+
+      WORLD_W = cfg.world.width; WORLD_H = cfg.world.height;
+      console.log("loaded World config from config.json");
+      MIN_ZOOM = cfg.world.minZoom; MAX_ZOOM = cfg.world.maxZoom;
+      CAMERA_FOLLOW_LERP = cfg.camera.followLerp;
+
+      MAX_ALIENS = cfg.waves.maxConcurrentAliens;
+      console.log("loaded waves config from config.json");
+      TARGET_WAVE = cfg.waves.targetWave;
+      KILLS_PER_WAVE_STEP = cfg.waves.killsPerWaveStep;
+      WAVE_SPAWN_BASE = cfg.waves.spawnTimerFrames.base;
+      WAVE_SPAWN_PER_WAVE_REDUCTION = cfg.waves.spawnTimerFrames.perWaveReduction;
+      WAVE_SPAWN_MIN = cfg.waves.spawnTimerFrames.minimum;
+
+      HIVE_MAX_ALIENS = cfg.hive.maxConcurrentAliensDuringHive;
+      HIVE_SPAWN_INTERVAL = cfg.hive.spawnIntervalFrames;
+      HIVE_FLEE_MARGIN = cfg.hive.fleeMargin;
+
+      REVIVE_RADIUS = cfg.revive.radius;
+      REVIVE_NEEDED = cfg.revive.progressNeeded;
+      REVIVE_RATE = cfg.revive.ratePerFrame;
+      REVIVE_DECAY = cfg.revive.decayPerFrame;
+
+      BLEED_MAX = cfg.downed.bleedOutFrames;
+      DOWNED_SPEED_MULT = cfg.downed.speedMultiplier;
+      REVIVE_HP_FRACTION = cfg.downed.reviveHpFraction;
+
+      ALIEN_DEFS_BY_TYPE = {};
+      for (const key in cfg.aliens) ALIEN_DEFS_BY_TYPE[cfg.aliens[key].type] = cfg.aliens[key];
+      // The Hive is spawned directly (not through the weighted pool) but reuses the same
+      // per-type lookup for radius/behavior so rendering and stat helpers stay uniform.
+      ALIEN_DEFS_BY_TYPE[4] = { type: 4, behavior: "flee", hp: { base: cfg.hive.hp, perWave: 0 }, speed: { min: cfg.hive.speed, variance: 0 }, radius: cfg.hive.radius };
+
+      ALIEN_SPAWN_POOL = Object.values(ALIEN_DEFS_BY_TYPE).filter(d => d.spawnWeight);
+
+      DIFFICULTY_LEVELS = (cfg.difficulty && cfg.difficulty.levels) || DEFAULT_CONFIG.difficulty.levels;
+      console.log("loaded difficulty levels from config.json");
+      DIFFICULTY_KEYS = Object.keys(DIFFICULTY_LEVELS);
+      DEFAULT_DIFFICULTY = (cfg.difficulty && cfg.difficulty.default) || DIFFICULTY_KEYS[0];
+
+      INTERACTABLES_CFG = cfg.interactables || DEFAULT_CONFIG.interactables;
+      console.log("loaded interactables from config.json");
+    }
+
+    // Full refresh: re-derive everything AND redraw the class selector. Only safe to call
+    // once selectedClassKey/localPlayer/peersMeta exist — see the two-phase boot below.
+    function applyConfig(cfg) {
+      deriveConfig(cfg);
+      if (typeof localPlayer !== "undefined") {
+        // If the freshly-loaded config replaced the class roster and our default pick
+        // (chosen before the fetch resolved) no longer exists, fall back cleanly instead
+        // of leaving stale references to a class that's gone.
+        if (!CLASS_KEYS.includes(selectedClassKey)) selectedClassKey = CLASS_KEYS[0];
+        if (!CLASS_KEYS.includes(localPlayer.classKey)) {
+          localPlayer.classKey = selectedClassKey;
+          localPlayer.hp = CLASSES[selectedClassKey].hp;
+          localPlayer.maxHp = CLASSES[selectedClassKey].hp;
+          if (peersMeta[myId]) peersMeta[myId].classKey = selectedClassKey;
+        }
+      }
+      if (typeof selectedDifficulty !== "undefined" && !DIFFICULTY_KEYS.includes(selectedDifficulty)) {
+        selectedDifficulty = DEFAULT_DIFFICULTY;
+      }
+      if (typeof renderClassSelector === "function" && typeof selectedClassKey !== "undefined") renderClassSelector();
+      if (typeof renderDifficultySelector === "function" && typeof selectedDifficulty !== "undefined") renderDifficultySelector();
+      if (typeof updatePeerListUI === "function" && typeof gameState !== "undefined" && gameState === "LOBBY") updatePeerListUI();
+    }
+
+    deriveConfig(DEFAULT_CONFIG); // enough to safely construct localPlayer etc. below; UI renders after
+
+    async function loadBundledConfig() {
+      try {
+        const res = await fetch("./config.json");
+        const manifest = await fetch("./manifest.toml");
+        const campaign1 = await fetch("./campaign1.json");
+        if (!res.ok) return;
+        if (!manifest.ok) return;
+        if (!campaign1.ok) return;
+        const loaded = await res.json();
+        // Whole-section replacement: if your config.json defines a section (e.g. "classes"),
+        // that section entirely replaces the default — it won't be merged with the built-in
+        // roster. Sections you omit entirely keep their default values. This way editing
+        // "aliens" to rebalance enemies can't accidentally leave a stray default class around,
+        // and you can fully swap out the marine roster without deleting anything by hand.
+        const merged = { ...DEFAULT_CONFIG };
+        for (const key of Object.keys(DEFAULT_CONFIG)) {
+          if (loaded[key] !== undefined) merged[key] = loaded[key];
+        }
+        applyConfig(merged);
+      } catch (e) {
+        console.warn("Using built-in default balance (config.json not loaded):", e);
+      }
+    }
+
+    const camera = { x: WORLD_W / 2, y: WORLD_H / 2, zoom: 1 };
+    function clampNum(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function hashId(str) {
+      let h = 5381;
+      for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) & 0xffff;
+      return h >>> 0;
+    }
+
+    const myId = hashId(window.webxdc.selfAddr + "");
+    const selfName = (window.webxdc.selfName || "Marine").slice(0, 14);
+
+    let selectedClassKey = CLASS_KEYS[0];
+    let selectedDifficulty = DEFAULT_DIFFICULTY;
+    let activeDifficulty = DEFAULT_DIFFICULTY; // the difficulty actually locked in for the current mission
+    let gameState = "LOBBY";      // LOBBY | PLAYING | GAMEOVER
+    let realtimeChannel = null;
+    let isHost = false;
+    let hostId = null;
+
+    // players: id -> {id,name,x,y,angle,hp,maxHp,classKey,isDowned,isDead,reviveProgress,lastShot}
+    const players = {};
+    const localPlayer = {
+      id: myId, name: selfName,
+      x: WORLD_W / 2, y: WORLD_H / 2, angle: 0,
+      hp: CLASSES[selectedClassKey].hp, maxHp: CLASSES[selectedClassKey].hp,
+      classKey: selectedClassKey,
+      isDowned: false, isDead: false, reviveProgress: 0,
+      lastShot: 0
+    };
+    players[myId] = localPlayer;
+
+    // peersMeta: id -> {name, classKey}  (from durable lobby "hello" updates)
+    const peersMeta = {};
+    peersMeta[myId] = { name: selfName, classKey: selectedClassKey };
+
+    let bullets = [];       // visual bullets on every client; only host applies damage from these
+    let aliens = {};        // id -> {x,y,hp,maxHp,speed,radius,type}   (host: simulated; client: mirrored from snapshots)
+    let particles = [];
+    let waveIndex = 1;
+    let missionGeneration = 0; // bumped every enterMission(); guards against stale delayed resends
+    let kills = 0;
+    let waveSpawnTimer = 0;
+    let alienIdCounter = 1;
+    let missionPhase = "WAVES";   // WAVES | HIVE
+    let hiveAlienId = null;
+    let poisonPatches = {};       // id -> {x,y,radius,life}  (host: simulated; client: mirrored)
+    let patchIdCounter = 1;
+
+    // Interactables (host-simulated, config-driven placements — a stand-in for hand-crafted
+    // rooms until real maps exist). All positions below are absolute world coordinates,
+    // converted once from the config's 0-1 fractions when a mission starts.
+    let doors = {};        // id -> {x,y,width,height,state:'closed'|'opening'|'open',timer,holdProgress}
+    let turretPads = {};   // id -> {x,y,deployed,spent,holdProgress}
+    let turrets = {};      // id -> {x,y,hp,maxHp,angle,cooldown,justFired,padId}
+    let lurePads = {};     // id -> {x,y,available,spent,holdProgress}
+    let lures = {};        // id -> {x,y,life,maxLife}
+    let medStations = {};  // id -> {x,y,usedBy:{playerId:true}, medicChargeUsed, partyHoldProgress}
+    let turretIdCounter = 1;
+    let lureIdCounter = 1;
+
+    let lastMoveBroadcast = 0;
+    let lastHostBroadcast = 0;
+    let missionEndSentAt = 0;
+
+    // Keyboard + mouse
+    const keys = {};
+    const mouse = { x: canvasW / 2, y: canvasH / 2, down: false };
+
+    // Twin-stick state
+    let moveX = 0, moveY = 0;
+    let aimX = 0, aimY = 0;
+    let aimActive = false;
+    let actionHeld = false; // true while the touch Action button is pressed (keyboard uses keys["KeyF"] directly)
+
+    window.addEventListener("keydown", e => { keys[e.code] = true; });
+    window.addEventListener("keyup",   e => { keys[e.code] = false; });
+    window.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    window.addEventListener("mousedown", e => { if (e.button === 0) mouse.down = true; });
+    window.addEventListener("mouseup",   e => { if (e.button === 0) mouse.down = false; });
+    // Desktop QoL: mouse wheel zoom, mirrors pinch-zoom on touch
+    window.addEventListener("wheel", e => {
+      camera.zoom = clampNum(camera.zoom - e.deltaY * 0.0012, MIN_ZOOM, MAX_ZOOM);
+    }, { passive: true });
+
+    // Screen <-> world coordinate helpers (account for camera pan + zoom)
+    function screenToWorld(sx, sy) {
+      return {
+        x: (sx - canvasW / 2) / camera.zoom + camera.x,
+        y: (sy - canvasH / 2) / camera.zoom + camera.y
+      };
+    }
+
+    // Touch identifiers currently owned by a joystick, so pinch-zoom never steals them
+    const claimedTouchIds = new Set();
+
+    // --- Twin-stick touch setup ---
+    function setupTouch() {
+      function bindStick(zoneId, thumbId, onMove, onEnd) {
+        const zone = document.getElementById(zoneId);
+        const thumb = document.getElementById(thumbId);
+        let origin = null;
+        let touchId = null;
+        let radius = 60;
+
+        zone.addEventListener("touchstart", e => {
+          e.preventDefault();
+          const t = e.changedTouches[0];
+          touchId = t.identifier;
+          claimedTouchIds.add(touchId);
+          const rect = zone.getBoundingClientRect();
+          radius = rect.width / 2;
+          origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }, { passive: false });
+
+        window.addEventListener("touchmove", e => {
+          for (const t of e.changedTouches) {
+            if (t.identifier === touchId && origin) {
+              const dx = t.clientX - origin.x;
+              const dy = t.clientY - origin.y;
+              const len = Math.sqrt(dx * dx + dy * dy) || 1;
+              const travel = Math.min(len, radius * 0.82);
+              const nx = (dx / len) * (travel / radius);
+              const ny = (dy / len) * (travel / radius);
+              const tx = (dx / len) * travel;
+              const ty = (dy / len) * travel;
+              thumb.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`;
+              onMove(nx, ny);
+            }
+          }
+        }, { passive: false });
+
+        const reset = () => {
+          thumb.style.transform = "translate(-50%, -50%)";
+          claimedTouchIds.delete(touchId);
+          touchId = null;
+          origin = null;
+          onEnd();
+        };
+
+        window.addEventListener("touchend", e => {
+          for (const t of e.changedTouches) { if (t.identifier === touchId) reset(); }
+        });
+        window.addEventListener("touchcancel", reset);
+      }
+
+      bindStick("moveZone", "moveThumb",
+        (nx, ny) => { moveX = nx; moveY = ny; },
+        () => { moveX = 0; moveY = 0; }
+      );
+      bindStick("aimZone", "aimThumb",
+        (nx, ny) => { aimX = nx; aimY = ny; aimActive = Math.abs(nx) > 0.12 || Math.abs(ny) > 0.12; },
+        () => { aimX = 0; aimY = 0; aimActive = false; }
+      );
+
+      const actionBtn = document.getElementById("actionBtn");
+      actionBtn.addEventListener("touchstart", e => { e.preventDefault(); actionHeld = true; actionBtn.classList.add("active"); }, { passive: false });
+      const releaseAction = () => { actionHeld = false; actionBtn.classList.remove("active"); };
+      actionBtn.addEventListener("touchend", releaseAction);
+      actionBtn.addEventListener("touchcancel", releaseAction);
+      // Also usable with a mouse for desktop testing without a keyboard
+      actionBtn.addEventListener("mousedown", () => { actionHeld = true; actionBtn.classList.add("active"); });
+      window.addEventListener("mouseup", releaseAction);
+
+      // --- Pinch-to-zoom (any two touches not already claimed by a joystick) ---
+      let pinchStartDist = null;
+      let pinchStartZoom = 1;
+      function touchDist(a, b) { return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+      function freeTouches(e) { return Array.from(e.touches).filter(t => !claimedTouchIds.has(t.identifier)); }
+
+      window.addEventListener("touchstart", e => {
+        const free = freeTouches(e);
+        if (free.length === 2) {
+          pinchStartDist = touchDist(free[0], free[1]);
+          pinchStartZoom = camera.zoom;
+        }
+      }, { passive: false });
+
+      window.addEventListener("touchmove", e => {
+        const free = freeTouches(e);
+        if (free.length === 2 && pinchStartDist) {
+          e.preventDefault();
+          const dist = touchDist(free[0], free[1]);
+          camera.zoom = clampNum(pinchStartZoom * (dist / pinchStartDist), MIN_ZOOM, MAX_ZOOM);
+        }
+      }, { passive: false });
+
+      const endPinch = e => { if (freeTouches(e).length < 2) pinchStartDist = null; };
+      window.addEventListener("touchend", endPinch);
+      window.addEventListener("touchcancel", endPinch);
+    }
+
+    // --- Realtime transport (JSON over the binary channel) ---
+    function sendRT(obj) {
+      if (!realtimeChannel) return;
+      try {
+        const bytes = new TextEncoder().encode(JSON.stringify(obj));
+        realtimeChannel.send(bytes);
+      } catch (e) {}
+    }
+
+    function handleRealtimeData(data) {
+      if (!(data instanceof Uint8Array) || data.byteLength === 0) return;
+      let obj;
+      try { obj = JSON.parse(new TextDecoder().decode(data)); } catch (e) { return; }
+      if (!obj || typeof obj.t !== "string") return;
+
+      switch (obj.t) {
+        case "p": handlePlayerState(obj); break;
+        case "s": handleShot(obj); break;
+        case "a": handleAlienSnapshot(obj); break;
+        case "h": handleHealthSnapshot(obj); break;
+        case "i": handleInteractablesSnapshot(obj); break;
+        case "e": handleMissionEnd(obj); break;
+      }
+    }
+
+    function handlePlayerState(obj) {
+      if (obj.id === myId) return; // ignore echo of self
+      let p = players[obj.id];
+      if (!p) {
+        const classKey = CLASS_KEYS[obj.c] || CLASS_KEYS[0];
+        p = players[obj.id] = {
+          id: obj.id, name: obj.n || "Marine",
+          x: obj.x, y: obj.y, angle: obj.a,
+          hp: CLASSES[classKey].hp,
+          maxHp: CLASSES[classKey].hp,
+          classKey,
+          isDowned: false, isDead: false, reviveProgress: 0, lastShot: 0
+        };
+      }
+      p.x = obj.x; p.y = obj.y; p.angle = obj.a;
+      p.classKey = CLASS_KEYS[obj.c] || p.classKey;
+      p.isChanneling = !!obj.ch;
+      if (obj.n) p.name = obj.n;
+    }
+
+    function handleShot(obj) {
+      if (obj.id === myId) return;
+      spawnBullet(obj.x, obj.y, obj.a, obj.d, false, obj.id);
+    }
+
+    function alienRadiusForType(type) {
+      const def = ALIEN_DEFS_BY_TYPE[type];
+      return def ? def.radius : 12;
+    }
+
+    function handleAlienSnapshot(obj) {
+      if (isHost) return; // host is the source of truth, ignore its own broadcast
+      const seen = {};
+      for (const e of obj.l) {
+        const [id, x, y, hpPct, type, armed] = e;
+        seen[id] = true;
+        let a = aliens[id];
+        if (!a) a = aliens[id] = { radius: alienRadiusForType(type) };
+        a.x = x; a.y = y; a.hp = hpPct; a.type = type; a.armed = !!armed;
+        a.radius = alienRadiusForType(type);
+      }
+      for (const id in aliens) { if (!seen[id]) delete aliens[id]; }
+
+      const seenPatches = {};
+      for (const g of (obj.g || [])) {
+        const [id, x, y, radius, lifeRatio] = g;
+        seenPatches[id] = true;
+        poisonPatches[id] = { x, y, radius, lifeRatio };
+      }
+      for (const id in poisonPatches) { if (!seenPatches[id]) delete poisonPatches[id]; }
+
+      waveIndex = obj.w;
+      kills = obj.k;
+      missionPhase = obj.ph === 1 ? "HIVE" : "WAVES";
+      updateWaveHud();
+    }
+
+    function handleHealthSnapshot(obj) {
+      if (isHost) return;
+      for (const e of obj.l) {
+        const [id, hp, downedFlag, deadFlag, prog] = e;
+        const p = players[id];
+        if (!p) continue;
+        p.hp = hp;
+        p.isDowned = !!downedFlag;
+        p.isDead = !!deadFlag;
+        p.reviveProgress = prog;
+      }
+      updateSquadHud();
+      updateDownedUi();
+    }
+
+    function handleInteractablesSnapshot(obj) {
+      if (isHost) return;
+      for (const e of (obj.d || [])) {
+        const [id, stateNum, holdPct] = e;
+        const d = doors[id];
+        if (!d) continue;
+        d.state = stateNum === 0 ? "closed" : stateNum === 1 ? "opening" : "open";
+        d.holdProgress = holdPct;
+      }
+      for (const e of (obj.tp || [])) {
+        const [id, spent, holdPct] = e;
+        const t = turretPads[id];
+        if (!t) continue;
+        t.spent = !!spent;
+        t.holdProgress = holdPct;
+      }
+      const seenTurrets = {};
+      for (const e of (obj.tr || [])) {
+        const [id, x, y, hpPct, angle, justFired] = e;
+        seenTurrets[id] = true;
+        let t = turrets[id];
+        if (!t) t = turrets[id] = {};
+        t.x = x; t.y = y; t.hp = hpPct; t.maxHp = 255; t.angle = angle; t.justFired = !!justFired;
+      }
+      for (const id in turrets) { if (!seenTurrets[id]) delete turrets[id]; }
+
+      for (const e of (obj.lp || [])) {
+        const [id, available, spent, holdPct] = e;
+        const l = lurePads[id];
+        if (!l) continue;
+        l.available = !!available;
+        l.spent = !!spent;
+        l.holdProgress = holdPct;
+      }
+      const seenLures = {};
+      for (const e of (obj.lu || [])) {
+        const [id, x, y, lifeRatio] = e;
+        seenLures[id] = true;
+        let l = lures[id];
+        if (!l) l = lures[id] = {};
+        l.x = x; l.y = y; l.lifeRatio = lifeRatio;
+      }
+      for (const id in lures) { if (!seenLures[id]) delete lures[id]; }
+
+      for (const e of (obj.ms || [])) {
+        const [id, medicChargeUsed, holdPct] = e;
+        const s = medStations[id];
+        if (!s) continue;
+        s.medicChargeUsed = !!medicChargeUsed;
+        s.holdProgress = holdPct;
+      }
+    }
+
+    function handleMissionEnd(obj) {
+      if (gameState !== "PLAYING") return;
+      if (obj.g !== undefined && obj.g !== missionGeneration) return; // stale resend from a previous mission
+      endMission(obj.r === "complete", obj.k);
+    }
+
+    // --- Durable lobby / lifecycle updates ---
+    function announcePresence() {
+      try {
+        window.webxdc.sendUpdate({
+          payload: { type: "hello", id: myId, name: selfName, classKey: selectedClassKey },
+          info: selfName + " joined the squad"
+        }, "");
+      } catch (e) {}
+    }
+
+    function announceStart(chosenHostId, difficulty) {
+      try {
+        window.webxdc.sendUpdate({
+          payload: { type: "start", hostId: chosenHostId, startedBy: myId, difficulty },
+          info: "Mission deployed"
+        }, "");
+      } catch (e) {}
+    }
+
+    function onDurableUpdate(update) {
+      const payload = update && update.payload;
+      if (!payload) return;
+      if (payload.type === "hello") {
+        peersMeta[payload.id] = { name: payload.name, classKey: payload.classKey };
+        if (gameState === "LOBBY") updatePeerListUI();
+      } else if (payload.type === "start") {
+        if (gameState === "LOBBY") {
+          hostId = payload.hostId;
+          isHost = (myId === hostId);
+          activeDifficulty = DIFFICULTY_KEYS.includes(payload.difficulty) ? payload.difficulty : DEFAULT_DIFFICULTY;
+          enterMission();
+        }
+      }
+    }
+
+    // --- UI: class selection (buttons are generated from CONFIG.classes, not hardcoded) ---
+    function renderClassSelector() {
+      const container = document.getElementById("class-selector");
+      if (!container) return; // not in the DOM yet on the very first synchronous applyConfig() call
+      if (!CLASS_KEYS.includes(selectedClassKey)) selectedClassKey = CLASS_KEYS[0];
+      container.innerHTML = "";
+      for (const key of CLASS_KEYS) {
+        const cls = CLASSES[key];
+        const btn = document.createElement("div");
+        btn.className = "class-btn" + (key === selectedClassKey ? " selected" : "");
+        btn.dataset.class = key;
+        btn.innerHTML = `<span class="name">${cls.name}</span><span class="role">HP ${cls.hp} &middot; DMG ${cls.damage}</span>`;
+        btn.addEventListener("click", () => selectClass(key));
+        container.appendChild(btn);
+      }
+    }
+
+    function selectClass(key) {
+      selectedClassKey = key;
+      document.querySelectorAll("#class-selector .class-btn").forEach(btn => btn.classList.toggle("selected", btn.dataset.class === key));
+      localPlayer.classKey = key;
+      localPlayer.hp = CLASSES[key].hp;
+      localPlayer.maxHp = CLASSES[key].hp;
+      peersMeta[myId].classKey = key;
+      announcePresence();
+      updatePeerListUI();
+    }
+
+    // --- UI: difficulty selection (host's pick is the one that's used at deploy time) ---
+    function renderDifficultySelector() {
+      const container = document.getElementById("difficulty-selector");
+      if (!container) return;
+      if (!DIFFICULTY_KEYS.includes(selectedDifficulty)) selectedDifficulty = DEFAULT_DIFFICULTY;
+      container.innerHTML = "";
+      for (const key of DIFFICULTY_KEYS) {
+        const level = DIFFICULTY_LEVELS[key];
+        const btn = document.createElement("div");
+        btn.className = "class-btn" + (key === selectedDifficulty ? " selected" : "");
+        btn.dataset.difficulty = key;
+        btn.innerHTML = `<span class="name">${level.name}</span>`;
+        btn.addEventListener("click", () => selectDifficulty(key));
+        container.appendChild(btn);
+      }
+    }
+
+    function selectDifficulty(key) {
+      selectedDifficulty = key;
+      document.querySelectorAll("#difficulty-selector .class-btn").forEach(btn => btn.classList.toggle("selected", btn.dataset.difficulty === key));
+    }
+
+    function currentLowestKnownId() {
+      let lowest = myId;
+      for (const id in peersMeta) { if (Number(id) < lowest) lowest = Number(id); }
+      return lowest;
+    }
+
+    function updatePeerListUI() {
+      const container = document.getElementById("peer-list");
+      container.innerHTML = "";
+      const lowest = currentLowestKnownId();
+      const ids = Object.keys(peersMeta).sort((a, b) => Number(a) - Number(b));
+      for (const id of ids) {
+        const meta = peersMeta[id];
+        const item = document.createElement("div");
+        item.className = "peer-item";
+        const isYou = Number(id) === myId;
+        const isLikelyHost = Number(id) === lowest;
+        const cls = CLASSES[meta.classKey] || CLASSES[CLASS_KEYS[0]];
+        item.innerHTML = `<span>${meta.name} (${cls.name})</span>
+          <div>${isYou ? '<span class="badge badge-you">You</span>' : ''}${isLikelyHost ? '<span class="badge badge-host">Host</span>' : ''}</div>`;
+        container.appendChild(item);
+      }
+      document.getElementById("status-line").textContent =
+        ids.length > 1 ? `${ids.length} marines ready` : "Waiting for squadmates… (can deploy solo)";
+    }
+
+    document.getElementById("btn-start").addEventListener("click", () => {
+      const chosen = currentLowestKnownId();
+      hostId = chosen;
+      isHost = (myId === hostId);
+      activeDifficulty = selectedDifficulty;
+      announceStart(chosen, selectedDifficulty);
+      enterMission();
+    });
+
+    document.getElementById("btn-again").addEventListener("click", () => {
+      document.getElementById("end-modal").style.display = "none";
+      document.getElementById("lobby-modal").style.display = "flex";
+      gameState = "LOBBY";
+    });
+
+    // --- Mission lifecycle ---
+    function enterMission() {
+      missionGeneration++;
+      document.getElementById("lobby-modal").style.display = "none";
+      document.getElementById("end-modal").style.display = "none";
+      gameState = "PLAYING";
+
+      for (const id in players) {
+        const p = players[id];
+        const meta = peersMeta[id];
+        if (meta) p.classKey = meta.classKey;
+        const cls = CLASSES[p.classKey] || CLASSES[CLASS_KEYS[0]];
+        p.hp = cls.hp; p.maxHp = cls.hp;
+        p.isDowned = false; p.isDead = false; p.reviveProgress = 0;
+        p.x = WORLD_W / 2 + (Math.random() - 0.5) * 80;
+        p.y = WORLD_H / 2 + (Math.random() - 0.5) * 80;
+      }
+
+      waveIndex = 1; kills = 0; aliens = {}; bullets = []; particles = [];
+      alienIdCounter = 1; waveSpawnTimer = 0;
+      missionPhase = "WAVES"; hiveAlienId = null; poisonPatches = {}; patchIdCounter = 1;
+      camera.x = localPlayer.x; camera.y = localPlayer.y; camera.zoom = 1;
+      initInteractables();
+      updateWaveHud();
+      updateSquadHud();
+      updateDownedUi();
+    }
+
+    // Build all interactable instances from config, converting 0-1 fractional positions
+    // into this mission's actual world coordinates. Only the host simulates their behavior,
+    // but every client builds the same static layout locally (positions never change once
+    // placed) so doors/pads render correctly even before the first host snapshot arrives.
+    function initInteractables() {
+      const ic = INTERACTABLES_CFG;
+      const diff = currentDifficulty();
+      walls = {};
+      for (const w of (ic.walls || [])) {
+        walls[w.id] = { cfg: w, x: w.x * WORLD_W, y: w.y * WORLD_H, width: w.width, height: w.height, rotation: w.rotation || 0 };
+      }
+
+      doors = {};
+      for (const d of (ic.doors || [])) {
+        doors[d.id] = { cfg: d, x: d.x * WORLD_W, y: d.y * WORLD_H, width: d.width, height: d.height, state: "closed", timer: 0, holdProgress: 0, channelerId: null, rotation: d.rotation };
+      }
+
+      turretPads = {};
+      for (const p of (ic.turretPads || [])) {
+        turretPads[p.id] = { x: p.x * WORLD_W, y: p.y * WORLD_H, deployed: false, spent: false, holdProgress: 0, channelerId: null };
+      }
+      turrets = {}; turretIdCounter = 1;
+
+      const lureCount = clampNum(diff.lureCount !== undefined ? diff.lureCount : (ic.lurePads || []).length, 0, (ic.lurePads || []).length);
+      lurePads = {};
+      (ic.lurePads || []).forEach((p, i) => {
+        lurePads[p.id] = { x: p.x * WORLD_W, y: p.y * WORLD_H, available: i < lureCount, spent: false, holdProgress: 0, channelerId: null };
+      });
+      lures = {}; lureIdCounter = 1;
+
+      medStations = {};
+      for (const s of (ic.medStations || [])) {
+        medStations[s.id] = { x: s.x * WORLD_W, y: s.y * WORLD_H, usedBy: {}, medicChargeUsed: false, holdProgress: 0, channelerId: null };
+      }
+    }
+
+    function endMission(complete, finalKills) {
+      gameState = "GAMEOVER";
+      document.getElementById("end-title").textContent = complete ? "Mission Complete" : "Squad Wiped";
+      document.getElementById("end-title").className = "end-title " + (complete ? "complete" : "wipe");
+      document.getElementById("end-stats").textContent =
+        `Wave ${waveIndex} • ${finalKills} xenos purged`;
+      document.getElementById("end-modal").style.display = "flex";
+    }
+
+    // --- Game logic: bullets / aliens ---
+    function spawnBullet(x, y, angle, damage, isLocal, ownerId) {
+      bullets.push({
+        x: x + Math.cos(angle) * 16, y: y + Math.sin(angle) * 16,
+        vx: Math.cos(angle) * 14, vy: Math.sin(angle) * 14,
+        damage, life: 60, owner: ownerId
+      });
+      for (let i = 0; i < 4; i++) {
+        particles.push({
+          x: x + Math.cos(angle) * 16, y: y + Math.sin(angle) * 16,
+          vx: Math.cos(angle + (Math.random() - 0.5)) * (2 + Math.random() * 4),
+          vy: Math.sin(angle + (Math.random() - 0.5)) * (2 + Math.random() * 4),
+          color: "#ffcc00", life: 8
+        });
+      }
+      if (isLocal) sendRT({ t: "s", id: myId, x, y, a: angle, d: damage });
+    }
+
+    function nextAlienId() {
+      const id = alienIdCounter++;
+      if (alienIdCounter > 9000) alienIdCounter = 1;
+      return id;
+    }
+
+    function pickWeightedAlienType() {
+      const options = ALIEN_SPAWN_POOL.filter(d => waveIndex >= (d.spawnWeight.minWave || 1));
+      const total = options.reduce((s, d) => s + d.spawnWeight.weight, 0);
+      if (total <= 0) return 0;
+      let r = Math.random() * total;
+      for (const d of options) { if (r < d.spawnWeight.weight) return d.type; r -= d.spawnWeight.weight; }
+      return 0;
+    }
+
+    function currentDifficulty() {
+      return DIFFICULTY_LEVELS[activeDifficulty] || DIFFICULTY_LEVELS[DEFAULT_DIFFICULTY];
+    }
+
+    function makeAlienStats(type) {
+      const def = ALIEN_DEFS_BY_TYPE[type] || ALIEN_DEFS_BY_TYPE[0];
+      const hpMult = type === 4 ? 1 : (currentDifficulty().alienHpMultiplier || 1); // Hive HP is a fixed set-piece, not difficulty-scaled
+      return {
+        hp: (def.hp.base + def.hp.perWave * waveIndex) * hpMult,
+        speed: def.speed.min + Math.random() * def.speed.variance,
+        radius: def.radius
+      };
+    }
+
+    function spawnAlien(forceType) {
+      let x, y;
+      if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -20 : WORLD_W + 20; y = Math.random() * WORLD_H; }
+      else { x = Math.random() * WORLD_W; y = Math.random() < 0.5 ? -20 : WORLD_H + 20; }
+      const type = forceType !== undefined ? forceType : pickWeightedAlienType();
+      const stats = makeAlienStats(type);
+      aliens[nextAlienId()] = { x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0 };
+    }
+
+    function spawnAlienNear(x, y, forceType) {
+      const type = forceType !== undefined ? forceType : pickWeightedAlienType();
+      const stats = makeAlienStats(type);
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 70;
+      aliens[nextAlienId()] = {
+        x: clampNum(x + Math.cos(angle) * dist, 0, WORLD_W),
+        y: clampNum(y + Math.sin(angle) * dist, 0, WORLD_H),
+        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0
+      };
+    }
+
+    function spawnDroneNear(x, y) {
+      spawnAlienNear(x, y, 0);
+    }
+
+    function spawnHive() {
+      const id = nextAlienId();
+      const stats = makeAlienStats(4);
+      aliens[id] = {
+        x: WORLD_W / 2 + (Math.random() - 0.5) * 500,
+        y: WORLD_H / 2 + (Math.random() - 0.5) * 400,
+        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type: 4
+      };
+      hiveAlienId = id;
+    }
+
+    // --- Doors: hold-to-open (channel), then a focused wave spawns while it slowly opens ---
+    function triggerDoorWave(door) {
+      const cfg = door.cfg;
+      for (let i = 0; i < (cfg.waveSize || 8); i++) {
+        spawnAlienNear(door.x, door.y, i === 0 ? cfg.waveMinAlienType : undefined);
+      }
+    }
+
+    function simulateDoors() {
+      for (const id in doors) {
+        const d = doors[id];
+        if (d.state === "opening") {
+          d.timer--;
+          if (d.timer <= 0) d.state = "open";
+        }
+      }
+    }
+
+    // --- Turrets: fixed-facing sentry gun, fires a narrow hitscan spray at anything in its vision cone ---
+    function deployTurret(pad, player) {
+      pad.deployed = true; pad.spent = true; pad.holdProgress = 0; pad.channelerId = null;
+      const tcfg = INTERACTABLES_CFG.turret;
+      const diff = currentDifficulty();
+      const hp = tcfg.baseHp * (diff.turretHpMultiplier || 1);
+      turrets[turretIdCounter++] = {
+        x: pad.x, y: pad.y, hp, maxHp: hp,
+        angle: player.angle, // facing locked to whatever the deploying player was aiming at completion
+        cooldown: 0, justFired: false, padId: pad.id
+      };
+    }
+
+    function simulateTurrets() {
+      const tcfg = INTERACTABLES_CFG.turret;
+      const coneHalf = ((tcfg.visionConeDegrees || 10) * Math.PI / 180) / 2;
+      for (const tid in turrets) {
+        const t = turrets[tid];
+        t.justFired = false;
+        t.cooldown = (t.cooldown || 0) - 1;
+
+        let hasTargetInCone = false;
+        for (const aid in aliens) {
+          const a = aliens[aid];
+          const dx = a.x - t.x, dy = a.y - t.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > tcfg.range) continue;
+          let angDiff = Math.abs(Math.atan2(dy, dx) - t.angle);
+          if (angDiff > Math.PI) angDiff = 2 * Math.PI - angDiff;
+          if (angDiff <= coneHalf) { hasTargetInCone = true; break; }
+        }
+
+        if (hasTargetInCone && t.cooldown <= 0) {
+          t.cooldown = tcfg.fireIntervalFrames;
+          t.justFired = true;
+          for (let k = 0; k < tcfg.pelletsPerBurst; k++) {
+            const spread = (Math.random() - 0.5) * (tcfg.spreadDegrees * Math.PI / 180);
+            const pelletAngle = t.angle + spread;
+            const dirX = Math.cos(pelletAngle), dirY = Math.sin(pelletAngle);
+            let hitId = null, hitDist = Infinity;
+            for (const aid in aliens) {
+              const a = aliens[aid];
+              const dx = a.x - t.x, dy = a.y - t.y;
+              const proj = dx * dirX + dy * dirY;
+              if (proj < 0 || proj > tcfg.range) continue;
+              const perp = Math.abs(dx * dirY - dy * dirX);
+              if (perp < a.radius + 4 && proj < hitDist) { hitDist = proj; hitId = aid; }
+            }
+            if (hitId !== null) {
+              const a = aliens[hitId];
+              a.hp -= tcfg.damagePerPellet;
+              if (a.hp <= 0) killAlien(hitId, a);
+            }
+          }
+        }
+      }
+    }
+
+    // --- Lures: hold-to-deploy (channel), pulls aliens within pullRadius, expires after durationFrames ---
+    function deployLure(pad) {
+      pad.spent = true; pad.holdProgress = 0; pad.channelerId = null;
+      const lcfg = INTERACTABLES_CFG.lure;
+      lures[lureIdCounter++] = { x: pad.x, y: pad.y, life: lcfg.durationFrames, maxLife: lcfg.durationFrames };
+    }
+
+    function simulateLures() {
+      for (const id in lures) {
+        const l = lures[id];
+        l.life--;
+        if (l.life <= 0) delete lures[id];
+      }
+    }
+
+    // --- Interaction channeling: shared hold-to-activate resolution for doors/turretPads/lurePads/medStations.
+    // A player must actively hold Action nearby (broadcast as p.isChanneling) for holdToActivateFrames —
+    // they're fully immobile and can't fire the whole time, mirroring the "out of combat" tension this
+    // is meant to create. Only one channeler is tracked per interactable at a time.
+    function simulateInteractionChanneling() {
+      const holdFrames = INTERACTABLES_CFG.holdToActivateFrames || 60;
+      const activeChannelers = Object.values(players).filter(p => p.isChanneling && !p.isDowned && !p.isDead);
+      const activeIds = new Set(activeChannelers.map(p => p.id));
+
+      const resetStale = (map) => {
+        for (const id in map) {
+          const it = map[id];
+          if (it.channelerId != null && !activeIds.has(it.channelerId)) { it.holdProgress = 0; it.channelerId = null; }
+        }
+      };
+      resetStale(doors); resetStale(turretPads); resetStale(lurePads); resetStale(medStations);
+
+      for (const p of activeChannelers) {
+        let best = null, bestKind = null, bestDist = Infinity;
+
+        for (const id in doors) {
+          const d = doors[id];
+          if (d.state !== "closed") continue;
+          if (d.channelerId != null && d.channelerId !== p.id) continue;
+          const radius = d.cfg.interactRadius || (Math.max(d.width, d.height) / 2 + 40);
+          const dist = Math.hypot(p.x - d.x, p.y - d.y);
+          if (dist < radius && dist < bestDist) { bestDist = dist; best = d; bestKind = "door"; }
+        }
+        for (const id in turretPads) {
+          const t = turretPads[id];
+          if (t.spent) continue;
+          if (t.channelerId != null && t.channelerId !== p.id) continue;
+          const radius = (INTERACTABLES_CFG.turret && INTERACTABLES_CFG.turret.interactRadius) || 55;
+          const dist = Math.hypot(p.x - t.x, p.y - t.y);
+          if (dist < radius && dist < bestDist) { bestDist = dist; best = t; bestKind = "turretPad"; }
+        }
+        for (const id in lurePads) {
+          const l = lurePads[id];
+          if (!l.available || l.spent) continue;
+          if (l.channelerId != null && l.channelerId !== p.id) continue;
+          const radius = (INTERACTABLES_CFG.lure && INTERACTABLES_CFG.lure.interactRadius) || 55;
+          const dist = Math.hypot(p.x - l.x, p.y - l.y);
+          if (dist < radius && dist < bestDist) { bestDist = dist; best = l; bestKind = "lurePad"; }
+        }
+        for (const id in medStations) {
+          const s = medStations[id];
+          const canSelfHeal = !s.usedBy[p.id] && p.hp < p.maxHp;
+          const canPartyHeal = !s.medicChargeUsed && CLASSES[p.classKey] && CLASSES[p.classKey].partyHealer;
+          if (!canSelfHeal && !canPartyHeal) continue;
+          if (s.channelerId != null && s.channelerId !== p.id) continue;
+          const radius = (INTERACTABLES_CFG.medStation && INTERACTABLES_CFG.medStation.interactRadius) || 50;
+          const dist = Math.hypot(p.x - s.x, p.y - s.y);
+          if (dist < radius && dist < bestDist) { bestDist = dist; best = s; bestKind = "medStation"; }
+        }
+
+        if (!best) continue;
+        best.channelerId = p.id;
+        best.holdProgress = (best.holdProgress || 0) + 1;
+        if (best.holdProgress >= holdFrames) {
+          resolveInteractionComplete(bestKind, best, p);
+        }
+      }
+    }
+
+    function resolveInteractionComplete(kind, obj, player) {
+      if (kind === "door") {
+        obj.state = "opening";
+        obj.timer = obj.cfg.openDurationFrames;
+        obj.holdProgress = 0; obj.channelerId = null;
+        triggerDoorWave(obj);
+      } else if (kind === "turretPad") {
+        deployTurret(obj, player);
+      } else if (kind === "lurePad") {
+        deployLure(obj);
+      } else if (kind === "medStation") {
+        const canSelfHeal = !obj.usedBy[player.id] && player.hp < player.maxHp;
+        const canPartyHeal = !obj.medicChargeUsed && CLASSES[player.classKey] && CLASSES[player.classKey].partyHealer;
+        if (canSelfHeal) {
+          player.hp = player.maxHp;
+          if (player.isDowned) { player.isDowned = false; player.reviveProgress = 0; }
+          obj.usedBy[player.id] = true;
+        } else if (canPartyHeal) {
+          for (const other of Object.values(players)) {
+            other.hp = other.maxHp;
+            if (other.isDowned) { other.isDowned = false; other.reviveProgress = 0; }
+          }
+          obj.medicChargeUsed = true;
+        }
+        obj.holdProgress = 0; obj.channelerId = null;
+      }
+    }
+
+    function livingTarget() {
+      const candidates = Object.values(players).filter(p => !p.isDowned && !p.isDead);
+      return candidates.length ? candidates : Object.values(players);
+    }
+
+    // Unified alien targeting across players/lures/turrets:
+    //  1. A player who is VERY close to the alien always wins (can't be lured/distracted away
+    //     from a fight already happening right on top of them).
+    //  2. Otherwise, an active lure within its pull radius wins.
+    //  3. Otherwise, nearest of (living players ∪ deployed turrets) — a turret sitting in the
+    //     open can and will pull aggro just by being closest, same as it would pull melee hits.
+    function pickAlienTarget(ax, ay) {
+      let nearestPlayer = null, npDist = Infinity;
+      for (const p of Object.values(players)) {
+        if (p.isDowned || p.isDead) continue;
+        const d = Math.hypot(p.x - ax, p.y - ay);
+        if (d < npDist) { npDist = d; nearestPlayer = p; }
+      }
+
+      const lureCfg = INTERACTABLES_CFG.lure || {};
+      const overrideRadius = lureCfg.overridePlayerRadius || 28;
+      if (nearestPlayer && npDist < overrideRadius) {
+        return { kind: "player", ref: nearestPlayer, x: nearestPlayer.x, y: nearestPlayer.y };
+      }
+
+      const pullRadius = lureCfg.pullRadius || 500;
+      let nearestLure = null, nlDist = Infinity;
+      for (const lure of Object.values(lures)) {
+        const d = Math.hypot(lure.x - ax, lure.y - ay);
+        if (d < pullRadius && d < nlDist) { nlDist = d; nearestLure = lure; }
+      }
+      if (nearestLure) return { kind: "lure", ref: nearestLure, x: nearestLure.x, y: nearestLure.y };
+
+      let best = nearestPlayer ? { kind: "player", ref: nearestPlayer, x: nearestPlayer.x, y: nearestPlayer.y } : null;
+      let bestDist = npDist;
+      for (const turret of Object.values(turrets)) {
+        const d = Math.hypot(turret.x - ax, turret.y - ay);
+        if (d < bestDist) { bestDist = d; best = { kind: "turret", ref: turret, x: turret.x, y: turret.y }; }
+      }
+      if (best) return best;
+      const any = Object.values(players)[0];
+      return any ? { kind: "player", ref: any, x: any.x, y: any.y } : null;
+    }
+
+    // Shared kill-resolution: called for any alien death, however it died (player bullet,
+    // turret fire, boomer self-destruct). Keeps wave progression / Hive spawn / mission-complete
+    // consistent no matter what actually landed the killing blow.
+    function killAlien(aid, alien) {
+      const wasHive = alien.type === 4;
+      delete aliens[aid];
+      if (wasHive) {
+        hiveAlienId = null;
+        broadcastMissionEnd(true);
+        return;
+      }
+      kills++;
+      if (missionPhase === "WAVES" && kills > 0 && kills % KILLS_PER_WAVE_STEP === 0) {
+        waveIndex++;
+        if (waveIndex >= TARGET_WAVE) {
+          waveIndex = TARGET_WAVE;
+          missionPhase = "HIVE";
+          spawnHive();
+        }
+      }
+    }
+
+    // --- Client-side check: is there anything nearby the local player could interact with?
+    // Used only for local movement-lock + UI preview; the host independently re-checks and
+    // resolves the actual effect, so this never needs to be perfectly authoritative.
+    function updateActionButtonLabel() {
+      const btn = document.getElementById("actionBtn");
+      if (!btn) return;
+      const kind = localPlayer.channelPreviewKind;
+      const label = kind === "door" ? "OPEN" : kind === "turretPad" ? "PLACE" : kind === "lurePad" ? "LURE" : kind === "medStation" ? "HEAL" : "HOLD";
+      if (btn.textContent !== label) btn.textContent = label;
+      btn.classList.toggle("ready", !!kind);
+    }
+
+    function localNearestInteractable(x, y) {
+      let best = null, bestKind = null, bestDist = Infinity;
+      const ic = INTERACTABLES_CFG;
+
+      for (const id in doors) {
+        const d = doors[id];
+        if (d.state !== "closed") continue;
+        const radius = (d.cfg && d.cfg.interactRadius) || (Math.max(d.width, d.height) / 2 + 40);
+        const dist = Math.hypot(x - d.x, y - d.y);
+        if (dist < radius && dist < bestDist) { bestDist = dist; best = d; bestKind = "door"; }
+      }
+      for (const id in turretPads) {
+        const t = turretPads[id];
+        if (t.spent) continue;
+        const radius = (ic.turret && ic.turret.interactRadius) || 55;
+        const dist = Math.hypot(x - t.x, y - t.y);
+        if (dist < radius && dist < bestDist) { bestDist = dist; best = t; bestKind = "turretPad"; }
+      }
+      for (const id in lurePads) {
+        const l = lurePads[id];
+        if (!l.available || l.spent) continue;
+        const radius = (ic.lure && ic.lure.interactRadius) || 55;
+        const dist = Math.hypot(x - l.x, y - l.y);
+        if (dist < radius && dist < bestDist) { bestDist = dist; best = l; bestKind = "lurePad"; }
+      }
+      for (const id in medStations) {
+        const s = medStations[id];
+        const canSelfHeal = !s.usedBy[myId] && localPlayer.hp < localPlayer.maxHp;
+        const canPartyHeal = !s.medicChargeUsed && CLASSES[localPlayer.classKey] && CLASSES[localPlayer.classKey].partyHealer;
+        if (!canSelfHeal && !canPartyHeal) continue;
+        const radius = (ic.medStation && ic.medStation.interactRadius) || 50;
+        const dist = Math.hypot(x - s.x, y - s.y);
+        if (dist < radius && dist < bestDist) { bestDist = dist; best = s; bestKind = "medStation"; }
+      }
+      return best ? { kind: bestKind, ref: best } : null;
+    }
+    // Generic check: tests if point (px, py) collides with a single rotated box object
+    function isPointInRotatedBox(px, py, box, radius = 15) {
+      const rad = ((box.rotation || 0) * Math.PI) / 180;
+      const cos = Math.cos(-rad);
+      const sin = Math.sin(-rad);
+
+      const dx = px - box.x;
+      const dy = py - box.y;
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      const halfW = box.width / 2;
+      const halfH = box.height / 2;
+      const cx = clampNum(localX, -halfW, halfW);
+      const cy = clampNum(localY, -halfH, halfH);
+
+      return Math.hypot(localX - cx, localY - cy) < radius;
+    }
+    // Axis-separated collision check against walls and closed/opening doors
+    function resolveWorldCollision(fromX, fromY, toX, toY) {
+      let x = fromX, y = fromY;
+
+      const blockedAt = (px, py) => {
+        // 1. Check static walls (always solid)
+        for (const id in walls) {
+          if (isPointInRotatedBox(px, py, walls[id])) return true;
+        }
+
+        // 2. Check doors (solid unless open)
+        for (const id in doors) {
+          const d = doors[id];
+          if (d.state === "open") continue;
+          if (isPointInRotatedBox(px, py, d)) return true;
+        }
+
+        return false;
+      };
+
+      if (!blockedAt(toX, y)) x = toX;
+      if (!blockedAt(x, toY)) y = toY;
+      return { x, y };
+    }
+    // --- Per-frame update ---
+    function updateGame(now) {
+      const cls = CLASSES[localPlayer.classKey];
+      const speedMult = localPlayer.isDowned ? DOWNED_SPEED_MULT : 1;
+      const canAct = !localPlayer.isDowned && !localPlayer.isDead;
+
+      const wantChannel = canAct && (keys["KeyF"] || actionHeld);
+      const nearbyInteractable = wantChannel ? localNearestInteractable(localPlayer.x, localPlayer.y) : null;
+      localPlayer.isChanneling = !!nearbyInteractable;
+      localPlayer.channelPreviewKind = nearbyInteractable ? nearbyInteractable.kind : null;
+      localPlayer.channelPreviewRef = nearbyInteractable ? nearbyInteractable.ref : null;
+      updateActionButtonLabel();
+
+      let mx = 0, my = 0;
+      if (!localPlayer.isChanneling) {
+        if (keys["KeyW"] || keys["ArrowUp"])    my -= 1;
+        if (keys["KeyS"] || keys["ArrowDown"])  my += 1;
+        if (keys["KeyA"] || keys["ArrowLeft"])  mx -= 1;
+        if (keys["KeyD"] || keys["ArrowRight"]) mx += 1;
+        if (Math.abs(moveX) > 0.05 || Math.abs(moveY) > 0.05) { mx = moveX; my = moveY; }
+        if (mx !== 0 && my !== 0) { const len = Math.sqrt(mx * mx + my * my) || 1; mx /= len; my /= len; }
+      }
+
+      const rawX = localPlayer.x + mx * cls.speed * speedMult;
+      const rawY = localPlayer.y + my * cls.speed * speedMult;
+      const resolved = resolveWorldCollision(localPlayer.x, localPlayer.y, rawX, rawY);
+      localPlayer.x = Math.max(16, Math.min(WORLD_W - 16, resolved.x));
+      localPlayer.y = Math.max(16, Math.min(WORLD_H - 16, resolved.y));
+
+      if (aimActive) localPlayer.angle = Math.atan2(aimY, aimX);
+      else {
+        const worldMouse = screenToWorld(mouse.x, mouse.y);
+        localPlayer.angle = Math.atan2(worldMouse.y - localPlayer.y, worldMouse.x - localPlayer.x);
+      }
+
+      const wantFire = canAct && !localPlayer.isChanneling && (aimActive || mouse.down);
+      if (wantFire && now - localPlayer.lastShot > cls.fireRate) {
+        spawnBullet(localPlayer.x, localPlayer.y, localPlayer.angle, cls.damage, true, myId);
+        localPlayer.lastShot = now;
+      }
+
+      // Camera smoothly follows the local player, clamped so the view never shows past the arena edge
+      const viewHalfW = (canvasW / 2) / camera.zoom;
+      const viewHalfH = (canvasH / 2) / camera.zoom;
+      const targetX = clampNum(localPlayer.x, Math.min(viewHalfW, WORLD_W / 2), Math.max(WORLD_W - viewHalfW, WORLD_W / 2));
+      const targetY = clampNum(localPlayer.y, Math.min(viewHalfH, WORLD_H / 2), Math.max(WORLD_H - viewHalfH, WORLD_H / 2));
+      camera.x += (targetX - camera.x) * CAMERA_FOLLOW_LERP;
+      camera.y += (targetY - camera.y) * CAMERA_FOLLOW_LERP;
+
+      if (now - lastMoveBroadcast > 55) {
+        sendRT({ t: "p", id: myId, x: localPlayer.x, y: localPlayer.y, a: localPlayer.angle, c: CLASS_KEYS.indexOf(localPlayer.classKey), n: selfName, ch: localPlayer.isChanneling ? 1 : 0 });
+        lastMoveBroadcast = now;
+      }
+
+      // Bullets: always move/expire for everyone; only host applies damage
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx; b.y += b.vy; b.life--;
+
+        if (isHost) {
+          for (const aid in aliens) {
+            const a = aliens[aid];
+            if (Math.hypot(b.x - a.x, b.y - a.y) < a.radius + 4) {
+              a.hp -= b.damage;
+              b.life = 0;
+              for (let p = 0; p < 3; p++) {
+                particles.push({ x: a.x, y: a.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, color: "#cc0033", life: 12 });
+              }
+              if (a.hp <= 0) {
+                killAlien(aid, a);
+              }
+              break;
+            }
+          }
+        }
+
+        if (b.life <= 0 || b.x < -10 || b.x > WORLD_W + 10 || b.y < -10 || b.y > WORLD_H + 10) bullets.splice(i, 1);
+      }
+
+      if (isHost) hostTick(now);
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      updateSquadHud();
+      updateDownedUi();
+    }
+
+    // --- Host-only authoritative simulation ---
+    function hostTick(now) {
+      waveSpawnTimer++;
+      const spawnIntervalMult = currentDifficulty().alienSpawnIntervalMultiplier || 1;
+      if (missionPhase === "WAVES") {
+        const threshold = Math.max(WAVE_SPAWN_MIN, WAVE_SPAWN_BASE - waveIndex * WAVE_SPAWN_PER_WAVE_REDUCTION) * spawnIntervalMult;
+        if (waveSpawnTimer > threshold && Object.keys(aliens).length < MAX_ALIENS) {
+          spawnAlien();
+          waveSpawnTimer = 0;
+        }
+      } else if (missionPhase === "HIVE") {
+        if (waveSpawnTimer > HIVE_SPAWN_INTERVAL * spawnIntervalMult && Object.keys(aliens).length < HIVE_MAX_ALIENS) {
+          const hive = hiveAlienId !== null ? aliens[hiveAlienId] : null;
+          if (hive) spawnDroneNear(hive.x, hive.y); else spawnAlien(0);
+          waveSpawnTimer = 0;
+        }
+      }
+
+      const targets = livingTarget();
+      for (const aid in aliens) {
+        const a = aliens[aid];
+        const def = ALIEN_DEFS_BY_TYPE[a.type] || ALIEN_DEFS_BY_TYPE[0];
+
+        // Flee (currently just the Hive): moves away from the nearest player, spawns drones separately above, never melees
+        if (def.behavior === "flee") {
+          let nearest = null, bestDist = Infinity;
+          for (const t of targets) {
+            const d = Math.hypot(t.x - a.x, t.y - a.y);
+            if (d < bestDist) { bestDist = d; nearest = t; }
+          }
+          if (nearest) {
+            const away = Math.atan2(a.y - nearest.y, a.x - nearest.x);
+            a.x += Math.cos(away) * a.speed;
+            a.y += Math.sin(away) * a.speed;
+          }
+          a.x = clampNum(a.x, HIVE_FLEE_MARGIN, WORLD_W - HIVE_FLEE_MARGIN);
+          a.y = clampNum(a.y, HIVE_FLEE_MARGIN, WORLD_H - HIVE_FLEE_MARGIN);
+          continue;
+        }
+
+        let target = pickAlienTarget(a.x, a.y);
+
+        // Rush-and-detonate (currently the Boomer): rush in, arm once close, flash, then AoE burst
+        if (def.behavior === "rushAndDetonate") {
+          if (a.fuse < 0) {
+            if (target) {
+              const angle = Math.atan2(target.y - a.y, target.x - a.x);
+              a.x += Math.cos(angle) * a.speed;
+              a.y += Math.sin(angle) * a.speed;
+            }
+            const dist = target ? Math.hypot(target.x - a.x, target.y - a.y) : Infinity;
+            if (dist < def.triggerRadius) a.fuse = def.fuseFrames;
+          } else {
+            a.fuse--;
+            if (a.fuse <= 0) {
+              for (const p of Object.values(players)) {
+                if (p.isDead) continue;
+                const d = Math.hypot(p.x - a.x, p.y - a.y);
+                if (d < def.explosionRadius) {
+                  const falloff = 1 - d / def.explosionRadius;
+                  p.hp = Math.max(0, p.hp - def.explosionDamage * falloff);
+                  if (p.hp <= 0 && !p.isDowned) { p.isDowned = true; p.bleedTimer = BLEED_MAX; p.reviveProgress = 0; }
+                }
+              }
+              for (let k = 0; k < 10; k++) {
+                particles.push({ x: a.x, y: a.y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, color: "#ff9900", life: 18 });
+              }
+              killAlien(aid, a);
+            }
+          }
+          continue; // no generic contact damage for boomers, only the explosion
+        }
+
+        // Chase / chase-and-trail (drone, brute, poison): walk straight at the current target
+        // (nearest living player, unless a lure or turret is currently the better draw)
+        if (target) {
+          const angle = Math.atan2(target.y - a.y, target.x - a.x);
+          a.x += Math.cos(angle) * a.speed;
+          a.y += Math.sin(angle) * a.speed;
+
+          if (def.behavior === "chaseAndTrail") {
+            a.trailTimer = (a.trailTimer || 0) + 1;
+            if (a.trailTimer > def.trailIntervalFrames) {
+              a.trailTimer = 0;
+              poisonPatches[patchIdCounter++] = { x: a.x, y: a.y, radius: def.patchRadius, life: def.patchLifeFrames, maxLife: def.patchLifeFrames, dps: def.patchDamagePerFrame };
+              if (patchIdCounter > 9000) patchIdCounter = 1;
+            }
+          }
+
+          if (Math.hypot(target.x - a.x, target.y - a.y) < a.radius + 14) {
+            const dmg = def.contactDamagePerFrame || 0.4;
+            if (target.kind === "player") {
+              const p = target.ref;
+              if (!p.isDowned && !p.isDead) {
+                p.hp = Math.max(0, p.hp - dmg);
+                if (p.hp <= 0 && !p.isDowned) { p.isDowned = true; p.bleedTimer = BLEED_MAX; p.reviveProgress = 0; }
+              }
+            } else if (target.kind === "turret") {
+              const t = target.ref;
+              t.hp = Math.max(0, t.hp - dmg);
+              if (t.hp <= 0) delete turrets[Object.keys(turrets).find(id => turrets[id] === t)];
+            }
+            // lure: no damage, aliens just linger near it
+          }
+        }
+      }
+
+      // Poison patches: age out after their lifetime, damage anyone standing in one
+      for (const pid in poisonPatches) {
+        const patch = poisonPatches[pid];
+        patch.life--;
+        if (patch.life <= 0) delete poisonPatches[pid];
+      }
+      for (const p of Object.values(players)) {
+        if (p.isDead || p.isDowned) continue;
+        for (const pid in poisonPatches) {
+          const patch = poisonPatches[pid];
+          if (Math.hypot(p.x - patch.x, p.y - patch.y) < patch.radius) {
+            p.hp = Math.max(0, p.hp - (patch.dps || 0.28));
+            if (p.hp <= 0 && !p.isDowned) { p.isDowned = true; p.bleedTimer = BLEED_MAX; p.reviveProgress = 0; }
+            break;
+          }
+        }
+      }
+
+      // Downed / revive / bleedout
+      const allPlayers = Object.values(players);
+      for (const p of allPlayers) {
+        if (p.isDead || !p.isDowned) continue;
+        const rescuer = allPlayers.find(o => o !== p && !o.isDowned && !o.isDead && Math.hypot(o.x - p.x, o.y - p.y) < REVIVE_RADIUS);
+        if (rescuer) {
+          p.reviveProgress = Math.min(REVIVE_NEEDED, (p.reviveProgress || 0) + REVIVE_RATE);
+          if (p.reviveProgress >= REVIVE_NEEDED) {
+            p.isDowned = false; p.reviveProgress = 0;
+            p.hp = Math.round(p.maxHp * REVIVE_HP_FRACTION);
+          }
+        } else {
+          p.reviveProgress = Math.max(0, (p.reviveProgress || 0) - REVIVE_DECAY);
+        }
+        if (p.isDowned) {
+          p.bleedTimer = (p.bleedTimer === undefined ? BLEED_MAX : p.bleedTimer) - 1;
+          if (p.bleedTimer <= 0) { p.isDowned = false; p.isDead = true; p.reviveProgress = 0; }
+        }
+      }
+
+      // Wipe check: everyone currently known is down or dead
+      if (allPlayers.length && allPlayers.every(p => p.isDowned || p.isDead)) {
+        broadcastMissionEnd(false);
+      }
+
+      simulateInteractionChanneling();
+      simulateDoors();
+      simulateTurrets();
+      simulateLures();
+
+      if (now - lastHostBroadcast > 120) {
+        broadcastAlienSnapshot();
+        broadcastHealthSnapshot();
+        broadcastInteractablesSnapshot();
+        lastHostBroadcast = now;
+      }
+    }
+
+    function broadcastAlienSnapshot() {
+      const list = [];
+      for (const id in aliens) {
+        const a = aliens[id];
+        list.push([Number(id), Math.round(a.x), Math.round(a.y), Math.max(0, Math.round((a.hp / a.maxHp) * 255)), a.type || 0, a.fuse >= 0 ? 1 : 0]);
+      }
+      const patches = [];
+      for (const id in poisonPatches) {
+        const p = poisonPatches[id];
+        patches.push([Number(id), Math.round(p.x), Math.round(p.y), p.radius, Math.max(0, p.life / (p.maxLife || p.life || 1))]);
+      }
+      sendRT({ t: "a", w: waveIndex, k: kills, ph: missionPhase === "HIVE" ? 1 : 0, l: list, g: patches });
+      updateWaveHud();
+    }
+
+    function broadcastHealthSnapshot() {
+      const list = Object.values(players).map(p => [p.id, Math.max(0, Math.round(p.hp)), p.isDowned ? 1 : 0, p.isDead ? 1 : 0, Math.round(p.reviveProgress || 0)]);
+      sendRT({ t: "h", l: list });
+      // Host applies its own authoritative values immediately too (no self-echo needed)
+    }
+
+    function broadcastInteractablesSnapshot() {
+      const holdFrames = INTERACTABLES_CFG.holdToActivateFrames || 60;
+      const pct = (p) => Math.round(((p || 0) / holdFrames) * 100);
+
+      const doorList = Object.keys(doors).map(id => {
+        const d = doors[id];
+        const stateNum = d.state === "closed" ? 0 : d.state === "opening" ? 1 : 2;
+        return [id, stateNum, pct(d.holdProgress)];
+      });
+      const turretPadList = Object.keys(turretPads).map(id => {
+        const t = turretPads[id];
+        return [id, t.spent ? 1 : 0, pct(t.holdProgress)];
+      });
+      const turretList = Object.keys(turrets).map(id => {
+        const t = turrets[id];
+        return [Number(id), Math.round(t.x), Math.round(t.y), Math.max(0, Math.round((t.hp / t.maxHp) * 255)), t.angle, t.justFired ? 1 : 0];
+      });
+      const lurePadList = Object.keys(lurePads).map(id => {
+        const l = lurePads[id];
+        return [id, l.available ? 1 : 0, l.spent ? 1 : 0, pct(l.holdProgress)];
+      });
+      const lureList = Object.keys(lures).map(id => {
+        const l = lures[id];
+        return [Number(id), Math.round(l.x), Math.round(l.y), Math.max(0, l.life / l.maxLife)];
+      });
+      const medList = Object.keys(medStations).map(id => {
+        const s = medStations[id];
+        return [id, s.medicChargeUsed ? 1 : 0, pct(s.holdProgress)];
+      });
+
+      sendRT({ t: "i", d: doorList, tp: turretPadList, tr: turretList, lp: lurePadList, lu: lureList, ms: medList });
+    }
+
+    function broadcastMissionEnd(complete) {
+      if (gameState !== "PLAYING") return;
+      gameState = "GAMEOVER";
+      const now = performance.now();
+      missionEndSentAt = now;
+      const gen = missionGeneration;
+      const payload = { t: "e", r: complete ? "complete" : "wipe", k: kills, g: gen };
+      sendRT(payload);
+      // Resend a couple times in case a client missed the first realtime packet — but only
+      // while we're still in the mission that actually ended, so a quick replay isn't clobbered
+      // by a stale resend arriving after the next mission has already started.
+      setTimeout(() => { if (missionGeneration === gen) sendRT(payload); }, 150);
+      setTimeout(() => { if (missionGeneration === gen) sendRT(payload); }, 400);
+      endMission(complete, kills);
+    }
+
+    // --- HUD ---
+    function updateWaveHud() {
+      document.getElementById("hud-wave").textContent = missionPhase === "HIVE" ? "FIND THE HIVE" : "WAVE " + waveIndex;
+      document.getElementById("hud-kills").textContent = kills;
+    }
+
+    function updateSquadHud() {
+      const container = document.getElementById("squad-rows");
+      container.innerHTML = "";
+      const lowest = hostId !== null ? hostId : currentLowestKnownId();
+      Object.values(players).sort((a, b) => a.id - b.id).forEach(p => {
+        const pct = Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100));
+        const row = document.createElement("div");
+        row.className = "squad-row" + (p.isDowned ? " downed" : "") + (p.isDead ? " dead" : "") + (p.id === lowest ? " host" : "");
+        row.innerHTML = `<span class="squad-name">${p.name}${p.id === myId ? " (you)" : ""}</span>
+          <div class="squad-bar-track"><div class="squad-bar-fill" style="width:${p.isDead ? 0 : pct}%"></div></div>`;
+        container.appendChild(row);
+      });
+    }
+
+    function updateDownedUi() {
+      const banner = document.getElementById("downed-banner");
+      const vignette = document.getElementById("vignette");
+      if (localPlayer.isDowned) {
+        banner.style.display = "block";
+        const bleedPct = Math.max(0, Math.min(100, ((localPlayer.bleedTimer !== undefined ? localPlayer.bleedTimer : BLEED_MAX) / BLEED_MAX) * 100));
+        document.getElementById("bleed-fill").style.width = bleedPct + "%";
+        vignette.style.boxShadow = "inset 0 0 160px 60px rgba(255,0,40,0.55)";
+      } else {
+        banner.style.display = "none";
+        vignette.style.boxShadow = "inset 0 0 140px 40px rgba(255,0,40,0)";
+      }
+    }
+
+    // --- Rendering ---
+    function drawProgressRing(x, y, radius, pct, color) {
+      if (!pct || pct <= 0) return;
+      CTX.save();
+      CTX.translate(x, y);
+      CTX.strokeStyle = color;
+      CTX.lineWidth = 3;
+      CTX.beginPath();
+      CTX.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + (pct / 100) * Math.PI * 2);
+      CTX.stroke();
+      CTX.restore();
+    }
+
+    function renderInteractables() {
+      const ic = INTERACTABLES_CFG;
+
+      // Doors: rectangle colored by state, progress ring while someone holds it
+      for (const id in doors) {
+        const d = doors[id];
+        CTX.save();
+        CTX.translate(d.x, d.y);
+        // Apply rotation using a degree property (e.g., d.rotation or d.angle)
+        if (d.rotation) {
+          CTX.rotate((d.rotation * Math.PI) / 180);
+        }
+        CTX.fillStyle = d.state === "closed" ? "rgba(200, 40, 60, 0.55)" : d.state === "opening" ? "rgba(230, 200, 40, 0.5)" : "rgba(60, 200, 100, 0.18)";
+        CTX.fillRect(-d.width / 2, -d.height / 2, d.width, d.height);
+        CTX.strokeStyle = d.state === "closed" ? "#ff3355" : d.state === "opening" ? "#ffcc33" : "#33cc66";
+        CTX.lineWidth = 2;
+        CTX.strokeRect(-d.width / 2, -d.height / 2, d.width, d.height);
+        CTX.restore();
+        if (d.state === "closed") drawProgressRing(d.x, d.y, Math.max(d.width, d.height) / 2 + 14, d.holdProgress, "#ffcc33");
+      }
+
+      // Turret pads (not yet deployed): marker + progress ring + aim-preview cone if the
+      // local player is currently channeling this exact pad
+      for (const id in turretPads) {
+        const t = turretPads[id];
+        if (t.spent) continue;
+        CTX.save();
+        CTX.translate(t.x, t.y);
+        CTX.strokeStyle = "#00f0ff";
+        CTX.lineWidth = 2;
+        CTX.beginPath(); CTX.arc(0, 0, 14, 0, Math.PI * 2); CTX.stroke();
+        CTX.fillStyle = "rgba(0, 240, 255, 0.15)";
+        CTX.beginPath(); CTX.arc(0, 0, 14, 0, Math.PI * 2); CTX.fill();
+        CTX.restore();
+        drawProgressRing(t.x, t.y, 22, t.holdProgress, "#00f0ff");
+
+        if (localPlayer.isChanneling && localPlayer.channelPreviewKind === "turretPad" && localPlayer.channelPreviewRef === t) {
+          const coneDeg = (ic.turret && ic.turret.visionConeDegrees) || 10;
+          const coneHalf = (coneDeg * Math.PI / 180) / 2;
+          const range = (ic.turret && ic.turret.range) || 340;
+          const ang = localPlayer.angle;
+          CTX.save();
+          CTX.translate(t.x, t.y);
+          CTX.fillStyle = "rgba(255, 204, 0, 0.18)";
+          CTX.beginPath();
+          CTX.moveTo(0, 0);
+          CTX.arc(0, 0, range, ang - coneHalf, ang + coneHalf);
+          CTX.closePath();
+          CTX.fill();
+          CTX.strokeStyle = "rgba(255, 204, 0, 0.6)";
+          CTX.lineWidth = 1.5;
+          CTX.stroke();
+          CTX.restore();
+        }
+      }
+
+      // Deployed turrets: body + fixed-facing barrel + vision cone tint + hp bar + muzzle flash
+      for (const id in turrets) {
+        const t = turrets[id];
+        const coneDeg = (ic.turret && ic.turret.visionConeDegrees) || 10;
+        const coneHalf = (coneDeg * Math.PI / 180) / 2;
+        const range = (ic.turret && ic.turret.range) || 340;
+        CTX.save();
+        CTX.translate(t.x, t.y);
+        CTX.fillStyle = "rgba(0, 240, 255, 0.06)";
+        CTX.beginPath();
+        CTX.moveTo(0, 0);
+        CTX.arc(0, 0, range, t.angle - coneHalf, t.angle + coneHalf);
+        CTX.closePath();
+        CTX.fill();
+        CTX.rotate(t.angle);
+        CTX.fillStyle = "#1e3a5f";
+        CTX.fillRect(0, -3, 22, 6);
+        CTX.fillStyle = t.justFired ? "#ffffff" : "#334155";
+        CTX.beginPath(); CTX.arc(0, 0, 13, 0, Math.PI * 2); CTX.fill();
+        if (t.justFired) {
+          CTX.fillStyle = "#ffe066";
+          CTX.beginPath(); CTX.arc(24, 0, 5, 0, Math.PI * 2); CTX.fill();
+        }
+        CTX.restore();
+        CTX.save();
+        CTX.translate(t.x, t.y);
+        CTX.fillStyle = "rgba(0,0,0,0.5)";
+        CTX.fillRect(-16, -26, 32, 4);
+        CTX.fillStyle = "#00f0ff";
+        CTX.fillRect(-16, -26, (t.hp / (t.maxHp || 255)) * 32 || 0, 4);
+        CTX.restore();
+      }
+
+      // Lure pads (not yet deployed): marker + progress ring
+      for (const id in lurePads) {
+        const l = lurePads[id];
+        if (!l.available || l.spent) continue;
+        CTX.save();
+        CTX.translate(l.x, l.y);
+        CTX.strokeStyle = "#ff66cc";
+        CTX.lineWidth = 2;
+        CTX.beginPath(); CTX.arc(0, 0, 14, 0, Math.PI * 2); CTX.stroke();
+        CTX.fillStyle = "rgba(255, 102, 204, 0.15)";
+        CTX.beginPath(); CTX.arc(0, 0, 14, 0, Math.PI * 2); CTX.fill();
+        CTX.restore();
+        drawProgressRing(l.x, l.y, 22, l.holdProgress, "#ff66cc");
+      }
+
+      // Active lures: beacon + gradiented low-opacity pull-radius circle
+      const pullRadius = (ic.lure && ic.lure.pullRadius) || 500;
+      for (const id in lures) {
+        const l = lures[id];
+        const ratio = l.lifeRatio !== undefined ? l.lifeRatio : (l.life / (l.maxLife || l.life || 1));
+        const grad = CTX.createRadialGradient(l.x, l.y, 0, l.x, l.y, pullRadius);
+        grad.addColorStop(0, `rgba(255, 102, 204, ${0.16 * ratio})`);
+        grad.addColorStop(1, "rgba(255, 102, 204, 0)");
+        CTX.fillStyle = grad;
+        CTX.beginPath(); CTX.arc(l.x, l.y, pullRadius, 0, Math.PI * 2); CTX.fill();
+
+        CTX.save();
+        CTX.translate(l.x, l.y);
+        const pulse = 1 + Math.sin(performance.now() / 180) * 0.15;
+        CTX.fillStyle = "#ff66cc";
+        CTX.beginPath(); CTX.arc(0, 0, 10 * pulse, 0, Math.PI * 2); CTX.fill();
+        CTX.restore();
+      }
+
+      // Med stations: cross icon, dimmed once fully spent, progress ring while channeling
+      for (const id in medStations) {
+        const s = medStations[id];
+        const spentForMe = !!s.usedBy[myId];
+        CTX.save();
+        CTX.translate(s.x, s.y);
+        CTX.fillStyle = s.medicChargeUsed && spentForMe ? "rgba(51, 255, 102, 0.12)" : "rgba(51, 255, 102, 0.22)";
+        CTX.beginPath(); CTX.arc(0, 0, 18, 0, Math.PI * 2); CTX.fill();
+        CTX.strokeStyle = "#33ff66";
+        CTX.lineWidth = 2;
+        CTX.beginPath(); CTX.arc(0, 0, 18, 0, Math.PI * 2); CTX.stroke();
+        CTX.fillStyle = "#33ff66";
+        CTX.fillRect(-2, -9, 4, 18);
+        CTX.fillRect(-9, -2, 18, 4);
+        CTX.restore();
+        drawProgressRing(s.x, s.y, 26, s.holdProgress, "#33ff66");
+      }
+    }
+
+    function renderGame() {
+      CTX.fillStyle = "#05070b";
+      CTX.fillRect(0, 0, canvasW, canvasH);
+
+      if (gameState !== "PLAYING") return;
+
+      CTX.save();
+      CTX.translate(canvasW / 2, canvasH / 2);
+      CTX.scale(camera.zoom, camera.zoom);
+      CTX.translate(-camera.x, -camera.y);
+
+      // Arena floor + grid, drawn only across world bounds so panning is visible
+      CTX.fillStyle = "#0b0e14";
+      CTX.fillRect(0, 0, WORLD_W, WORLD_H);
+      CTX.strokeStyle = "#121a28";
+      CTX.lineWidth = 1;
+      const grid = 40;
+      for (let x = 0; x <= WORLD_W; x += grid) { CTX.beginPath(); CTX.moveTo(x, 0); CTX.lineTo(x, WORLD_H); CTX.stroke(); }
+      for (let y = 0; y <= WORLD_H; y += grid) { CTX.beginPath(); CTX.moveTo(0, y); CTX.lineTo(WORLD_W, y); CTX.stroke(); }
+      CTX.strokeStyle = "rgba(0, 240, 255, 0.35)";
+      CTX.lineWidth = 3;
+      CTX.strokeRect(0, 0, WORLD_W, WORLD_H);
+
+      renderInteractables();
+
+      if (!localPlayer.isDowned && !localPlayer.isDead) {
+        CTX.strokeStyle = "rgba(0, 240, 255, 0.2)";
+        CTX.beginPath();
+        CTX.moveTo(localPlayer.x, localPlayer.y);
+        CTX.lineTo(localPlayer.x + Math.cos(localPlayer.angle) * 600, localPlayer.y + Math.sin(localPlayer.angle) * 600);
+        CTX.stroke();
+      }
+
+      // Poison trail patches on the ground, fading out as they age
+      for (const id in poisonPatches) {
+        const patch = poisonPatches[id];
+        const ratio = patch.lifeRatio !== undefined ? patch.lifeRatio : (patch.life / (patch.maxLife || patch.life || 1));
+        CTX.fillStyle = `rgba(70, 220, 90, ${0.15 + ratio * 0.35})`;
+        CTX.beginPath();
+        CTX.arc(patch.x, patch.y, patch.radius, 0, Math.PI * 2);
+        CTX.fill();
+      }
+
+      CTX.fillStyle = "#ffea00";
+      for (const b of bullets) { CTX.beginPath(); CTX.arc(b.x, b.y, 2.5, 0, Math.PI * 2); CTX.fill(); }
+
+      for (const id in aliens) {
+        const a = aliens[id];
+        const armed = a.fuse !== undefined ? a.fuse >= 0 : !!a.armed;
+        CTX.save();
+        CTX.translate(a.x, a.y);
+
+        if (a.type === 4) {
+          // Hive: large pulsating organic mass
+          const pulse = 1 + Math.sin(performance.now() / 260) * 0.06;
+          CTX.fillStyle = "#3a0a4a";
+          CTX.beginPath(); CTX.arc(0, 0, a.radius * pulse, 0, Math.PI * 2); CTX.fill();
+          CTX.fillStyle = "#7a1fae";
+          CTX.beginPath(); CTX.arc(0, 0, a.radius * pulse * 0.62, 0, Math.PI * 2); CTX.fill();
+          CTX.fillStyle = "#c04dff";
+          CTX.beginPath(); CTX.arc(0, 0, a.radius * pulse * 0.3, 0, Math.PI * 2); CTX.fill();
+        } else if (a.type === 2 && armed) {
+          // Boomer arming to detonate: fast white/red flash
+          const flash = Math.floor(performance.now() / 80) % 2 === 0;
+          CTX.fillStyle = flash ? "#ffffff" : "#ff3300";
+          CTX.beginPath(); CTX.arc(0, 0, a.radius * 1.15, 0, Math.PI * 2); CTX.fill();
+        } else {
+          CTX.fillStyle = a.type === 1 ? "#a4165e" : a.type === 2 ? "#ff7a1a" : a.type === 3 ? "#2fcf5f" : "#ff2a5f";
+          CTX.beginPath();
+          CTX.arc(0, 0, a.radius, 0, Math.PI * 2);
+          CTX.fill();
+        }
+
+        if (a.type !== 4) {
+          CTX.fillStyle = "rgba(0,0,0,0.5)";
+          CTX.fillRect(-a.radius, -a.radius - 6, a.radius * 2, 4);
+          CTX.fillStyle = a.type === 1 ? "#ff6fae" : a.type === 2 ? "#ffcc99" : a.type === 3 ? "#a8ffbf" : "#ff3366";
+          CTX.fillRect(-a.radius, -a.radius - 6, (a.hp / 255) * a.radius * 2 || 0, 4);
+        } else {
+          // Hive health bar, larger and above the pulsating mass
+          CTX.fillStyle = "rgba(0,0,0,0.5)";
+          CTX.fillRect(-40, -a.radius - 14, 80, 6);
+          CTX.fillStyle = "#e6a8ff";
+          CTX.fillRect(-40, -a.radius - 14, (a.hp / 255) * 80 || 0, 6);
+        }
+        CTX.restore();
+      }
+
+      for (const p of particles) { CTX.fillStyle = p.color; CTX.fillRect(p.x, p.y, 2, 2); }
+
+      Object.values(players).forEach(p => {
+        const cls = CLASSES[p.classKey] || CLASSES[CLASS_KEYS[0]];
+        CTX.save();
+        CTX.translate(p.x, p.y);
+        CTX.globalAlpha = p.isDead ? 0.3 : 1;
+
+        if (p.isDowned) {
+          CTX.rotate(p.angle);
+          CTX.fillStyle = "#7a1030";
+          CTX.beginPath();
+          CTX.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
+          CTX.fill();
+          CTX.restore();
+          if (p.reviveProgress > 0) {
+            CTX.save();
+            CTX.translate(p.x, p.y);
+            CTX.strokeStyle = "#33ff66";
+            CTX.lineWidth = 3;
+            CTX.beginPath();
+            CTX.arc(0, 0, 20, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / REVIVE_NEEDED) * Math.PI * 2);
+            CTX.stroke();
+            CTX.restore();
+          }
+        } else {
+          CTX.rotate(p.angle);
+          CTX.fillStyle = "#475569";
+          CTX.fillRect(6, 2, 12, 4);
+          CTX.fillStyle = cls.color;
+          CTX.beginPath();
+          CTX.arc(0, 0, 14, 0, Math.PI * 2);
+          CTX.fill();
+          CTX.fillStyle = "#ffffff";
+          CTX.beginPath();
+          CTX.arc(8, 0, 3, 0, Math.PI * 2);
+          CTX.fill();
+          CTX.restore();
+        }
+
+        CTX.fillStyle = p.isDead ? "#475569" : "#94a3b8";
+        CTX.font = "10px monospace";
+        CTX.textAlign = "center";
+        CTX.fillText(p.name, p.x, p.y - (p.isDowned ? 26 : 20));
+      });
+
+      CTX.restore();
+    }
+
+    // --- Init ---
+    function initRealtime() {
+      const status = document.getElementById("status-line");
+      if (typeof window.webxdc.joinRealtimeChannel !== "function") {
+        status.textContent = "Realtime not available – single player only";
+        return;
+      }
+      try {
+        realtimeChannel = window.webxdc.joinRealtimeChannel();
+        realtimeChannel.setListener(handleRealtimeData);
+      } catch (e) {
+        status.textContent = "Could not join realtime channel";
+        console.warn(e);
+      }
+    }
+
+    function initDurable() {
+      try {
+        window.webxdc.setUpdateListener(onDurableUpdate, 0);
+      } catch (e) {}
+      announcePresence();
+    }
+
+    renderClassSelector();
+    renderDifficultySelector();
+    updatePeerListUI();
+    initRealtime();
+    initDurable();
+    setupTouch();
+    loadBundledConfig(); // non-blocking: game is already fully playable on DEFAULT_CONFIG
+
+    function loop(now) {
+      if (gameState === "PLAYING") updateGame(now);
+      renderGame();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

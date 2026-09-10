@@ -1,0 +1,159 @@
+{
+  "_readme": "Tunable game balance. Edit this, re-zip the .xdc, done — no code changes needed for anything in here. Each top-level section (world, classes, revive, downed, waves, hive, aliens) is used as a whole: if you define a section here it fully replaces that default section (e.g. redefine 'classes' with your own roster and the built-in Officer/Specialist/Medic won't linger), and any section you leave out entirely just keeps its default. 'behavior' fields pick from a fixed set of movement/targeting strategies implemented in the game (see _behaviors below); they are not custom code. Wire-protocol numeric alien 'type' ids (0-4) must stay attached to the same archetype across everyone using this build, since peers only exchange numbers, not this file.",
+  "_behaviors": {
+    "chase": "Walks straight at whichever living player is currently nearest.",
+    "chaseAndTrail": "Same as chase, but periodically drops a lingering damage patch behind it.",
+    "rushAndDetonate": "Chases like normal until within triggerRadius, then arms (flashes) for fuseFrames and explodes.",
+    "flee": "Moves directly away from the nearest living player instead of toward them."
+  },
+
+  "world": {
+    "width": 2600,
+    "height": 1900,
+    "minZoom": 0.55,
+    "maxZoom": 1.9
+  },
+
+  "camera": {
+    "followLerp": 0.1
+  },
+
+  "classes": {
+    "officer":    { "name": "Officer",    "hp": 120, "speed": 3.2, "fireRate": 140, "damage": 22, "color": "#00f0ff" },
+    "specialist": { "name": "Specialist", "hp": 90,  "speed": 4.0, "fireRate": 80,  "damage": 12, "color": "#ffcc00" },
+    "medic":      { "name": "Medic",      "hp": 100, "speed": 3.5, "fireRate": 180, "damage": 18, "color": "#33ff66", "partyHealer": true }
+  },
+
+  "difficulty": {
+    "_readme": "Host picks one of these in the lobby; it's shared for the whole squad. Add more levels freely — the lobby buttons are generated from this list.",
+    "default": "normal",
+    "levels": {
+      "easy":   { "name": "Easy",   "turretHpMultiplier": 1.6, "lureCount": 3, "alienHpMultiplier": 0.85, "alienSpawnIntervalMultiplier": 1.15 },
+      "normal": { "name": "Normal", "turretHpMultiplier": 1.0, "lureCount": 2, "alienHpMultiplier": 1.0,  "alienSpawnIntervalMultiplier": 1.0 },
+      "hard":   { "name": "Hard",   "turretHpMultiplier": 0.7, "lureCount": 1, "alienHpMultiplier": 1.2,  "alienSpawnIntervalMultiplier": 0.85 }
+    }
+  },
+
+  "revive": {
+    "radius": 46,
+    "progressNeeded": 100,
+    "ratePerFrame": 1.1,
+    "decayPerFrame": 0.6
+  },
+
+  "downed": {
+    "bleedOutFrames": 1200,
+    "speedMultiplier": 0.35,
+    "reviveHpFraction": 0.5
+  },
+
+  "waves": {
+    "killsPerWaveStep": 15,
+    "targetWave": 6,
+    "maxConcurrentAliens": 26,
+    "spawnTimerFrames": { "base": 120, "perWaveReduction": 10, "minimum": 30 }
+  },
+
+  "hive": {
+    "hp": 900,
+    "speed": 0.75,
+    "radius": 46,
+    "fleeMargin": 60,
+    "_note": "drones it spawns while alive reuse the 'drone' entry in aliens below",
+    "spawnIntervalFrames": 70,
+    "maxConcurrentAliensDuringHive": 40
+  },
+
+  "aliens": {
+    "drone": {
+      "type": 0,
+      "behavior": "chase",
+      "hp": { "base": 40, "perWave": 8 },
+      "speed": { "min": 1.8, "variance": 0.8 },
+      "radius": 12,
+      "contactDamagePerFrame": 0.4,
+      "spawnWeight": { "weight": 55, "minWave": 1 }
+    },
+    "brute": {
+      "type": 1,
+      "behavior": "chase",
+      "hp": { "base": 140, "perWave": 14 },
+      "speed": { "min": 1.1, "variance": 0.3 },
+      "radius": 20,
+      "contactDamagePerFrame": 0.4,
+      "spawnWeight": { "weight": 12, "minWave": 2 }
+    },
+    "boomer": {
+      "type": 2,
+      "behavior": "rushAndDetonate",
+      "hp": { "base": 30, "perWave": 4 },
+      "speed": { "min": 2.3, "variance": 0.5 },
+      "radius": 13,
+      "spawnWeight": { "weight": 18, "minWave": 2 },
+      "triggerRadius": 60,
+      "fuseFrames": 50,
+      "explosionRadius": 75,
+      "explosionDamage": 45
+    },
+    "poison": {
+      "type": 3,
+      "behavior": "chaseAndTrail",
+      "hp": { "base": 50, "perWave": 6 },
+      "speed": { "min": 1.0, "variance": 0.3 },
+      "radius": 14,
+      "contactDamagePerFrame": 0.4,
+      "spawnWeight": { "weight": 15, "minWave": 3 },
+      "trailIntervalFrames": 12,
+      "patchRadius": 26,
+      "patchLifeFrames": 660,
+      "patchDamagePerFrame": 0.28
+    }
+  },
+
+  "interactables": {
+    "_readme": "Fixed map fixtures — a stand-in for hand-crafted rooms until real maps exist. Positions are fractions of world width/height (0-1) so they scale automatically if 'world' size changes. All 'hold near it' interactions share holdToActivateFrames as their trigger time.",
+    "holdToActivateFrames": 60,
+
+    "doors": [
+      { "id": "door_mid", "x": 1.7, "y": 0.2, "width": 18, "height": 200, "openDurationFrames": 300, "waveSize": 10, "waveMinAlienType": 0, "interactRadius": 70 }
+    ],
+
+    "turretPads": [
+      { "id": "turret_north", "x": 0.5, "y": 0.1 },
+      { "id": "turret_south", "x": 0.5, "y": 0.9 }
+    ],
+    "turret": {
+      "baseHp": 140,
+      "range": 340,
+      "visionConeDegrees": 10,
+      "fireIntervalFrames": 18,
+      "pelletsPerBurst": 3,
+      "spreadDegrees": 14,
+      "damagePerPellet": 9,
+      "radius": 16,
+      "contactDamagePerFrame": 0.4,
+      "interactRadius": 55
+    },
+
+    "lurePads": [
+      { "id": "lure_west", "x": 0.12, "y": 0.5 },
+      { "id": "lure_east", "x": 0.88, "y": 0.5 },
+      { "id": "lure_north", "x": 0.5, "y": 0.15 }
+    ],
+    "lure": {
+      "durationFrames": 600,
+      "overridePlayerRadius": 28,
+      "pullRadius": 500,
+      "radius": 14,
+      "interactRadius": 55
+    },
+
+    "medStations": [
+      { "id": "medstation_1", "x": 0.3, "y": 0.75 }
+    ],
+    "medStation": {
+      "interactRadius": 50,
+      "radius": 18
+    }
+  }
+}
