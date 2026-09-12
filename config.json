@@ -1,59 +1,101 @@
 {
-  "_readme": "Tunable game balance. Edit this, re-zip the .xdc, done — no code changes needed for anything in here. Each top-level section (world, classes, revive, downed, waves, hive, aliens) is used as a whole: if you define a section here it fully replaces that default section (e.g. redefine 'classes' with your own roster and the built-in Officer/Specialist/Medic won't linger), and any section you leave out entirely just keeps its default. 'behavior' fields pick from a fixed set of movement/targeting strategies implemented in the game (see _behaviors below); they are not custom code. Wire-protocol numeric alien 'type' ids (0-4) must stay attached to the same archetype across everyone using this build, since peers only exchange numbers, not this file.",
+  "_readme": "Tunable game balance. Edit this, re-zip the .xdc, done \u2014 no code changes needed for anything in here. Each top-level section (world, classes, revive, downed, waves, hive, aliens) is used as a whole: if you define a section here it fully replaces that default section (e.g. redefine 'classes' with your own roster and the built-in Officer/Specialist/Medic won't linger), and any section you leave out entirely just keeps its default. 'behavior' fields pick from a fixed set of movement/targeting strategies implemented in the game (see _behaviors below); they are not custom code. Wire-protocol numeric alien 'type' ids (0-4) must stay attached to the same archetype across everyone using this build, since peers only exchange numbers, not this file.",
   "_behaviors": {
     "chase": "Walks straight at whichever living player is currently nearest.",
     "chaseAndTrail": "Same as chase, but periodically drops a lingering damage patch behind it.",
     "rushAndDetonate": "Chases like normal until within triggerRadius, then arms (flashes) for fuseFrames and explodes.",
     "flee": "Moves directly away from the nearest living player instead of toward them."
   },
-
   "world": {
     "width": 2600,
     "height": 1900,
     "minZoom": 0.55,
     "maxZoom": 1.9
   },
-
   "camera": {
     "followLerp": 0.1
   },
-
   "classes": {
-    "officer":    { "name": "Officer",    "hp": 120, "speed": 3.2, "fireRate": 140, "damage": 22, "color": "#00f0ff" },
-    "specialist": { "name": "Specialist", "hp": 90,  "speed": 4.0, "fireRate": 80,  "damage": 12, "color": "#ffcc00" },
-    "medic":      { "name": "Medic",      "hp": 100, "speed": 3.5, "fireRate": 180, "damage": 18, "color": "#33ff66", "partyHealer": true }
-  },
-
-  "difficulty": {
-    "_readme": "Host picks one of these in the lobby; it's shared for the whole squad. Add more levels freely — the lobby buttons are generated from this list.",
-    "default": "normal",
-    "levels": {
-      "easy":   { "name": "Easy",   "turretHpMultiplier": 1.6, "lureCount": 3, "alienHpMultiplier": 0.85, "alienSpawnIntervalMultiplier": 1.15 },
-      "normal": { "name": "Normal", "turretHpMultiplier": 1.0, "lureCount": 2, "alienHpMultiplier": 1.0,  "alienSpawnIntervalMultiplier": 1.0 },
-      "hard":   { "name": "Hard",   "turretHpMultiplier": 0.7, "lureCount": 1, "alienHpMultiplier": 1.2,  "alienSpawnIntervalMultiplier": 0.85 }
+    "officer": {
+      "name": "Officer",
+      "hp": 120,
+      "speed": 3.2,
+      "fireRate": 140,
+      "damage": 22,
+      "color": "#00f0ff",
+      "visionNearRadius": 150,
+      "visionFarRadius": 320
+    },
+    "specialist": {
+      "name": "Specialist",
+      "hp": 90,
+      "speed": 4.0,
+      "fireRate": 80,
+      "damage": 12,
+      "color": "#ffcc00",
+      "visionNearRadius": 160,
+      "visionFarRadius": 400
+    },
+    "medic": {
+      "name": "Medic",
+      "hp": 100,
+      "speed": 3.5,
+      "fireRate": 180,
+      "damage": 18,
+      "color": "#33ff66",
+      "partyHealer": true,
+      "visionNearRadius": 140,
+      "visionFarRadius": 280
     }
   },
-
+  "difficulty": {
+    "_readme": "Host picks one of these in the lobby; it's shared for the whole squad. Add more levels freely \u2014 the lobby buttons are generated from this list.",
+    "default": "normal",
+    "levels": {
+      "easy": {
+        "name": "Easy",
+        "turretHpMultiplier": 1.6,
+        "lureCount": 3,
+        "alienHpMultiplier": 0.85,
+        "alienSpawnIntervalMultiplier": 1.15
+      },
+      "normal": {
+        "name": "Normal",
+        "turretHpMultiplier": 1.0,
+        "lureCount": 2,
+        "alienHpMultiplier": 1.0,
+        "alienSpawnIntervalMultiplier": 1.0
+      },
+      "hard": {
+        "name": "Hard",
+        "turretHpMultiplier": 0.7,
+        "lureCount": 1,
+        "alienHpMultiplier": 1.2,
+        "alienSpawnIntervalMultiplier": 0.85
+      }
+    }
+  },
   "revive": {
     "radius": 46,
     "progressNeeded": 100,
     "ratePerFrame": 1.1,
     "decayPerFrame": 0.6
   },
-
   "downed": {
     "bleedOutFrames": 1200,
     "speedMultiplier": 0.35,
     "reviveHpFraction": 0.5
   },
-
   "waves": {
     "killsPerWaveStep": 15,
     "targetWave": 6,
     "maxConcurrentAliens": 26,
-    "spawnTimerFrames": { "base": 120, "perWaveReduction": 10, "minimum": 30 }
+    "spawnTimerFrames": {
+      "base": 120,
+      "perWaveReduction": 10,
+      "minimum": 30
+    }
   },
-
   "hive": {
     "hp": 900,
     "speed": 0.75,
@@ -63,33 +105,59 @@
     "spawnIntervalFrames": 70,
     "maxConcurrentAliensDuringHive": 40
   },
-
   "aliens": {
     "drone": {
       "type": 0,
       "behavior": "chase",
-      "hp": { "base": 40, "perWave": 8 },
-      "speed": { "min": 1.8, "variance": 0.8 },
+      "hp": {
+        "base": 40,
+        "perWave": 8
+      },
+      "speed": {
+        "min": 1.8,
+        "variance": 0.8
+      },
       "radius": 12,
       "contactDamagePerFrame": 0.4,
-      "spawnWeight": { "weight": 55, "minWave": 1 }
+      "spawnWeight": {
+        "weight": 55,
+        "minWave": 1
+      }
     },
     "brute": {
       "type": 1,
       "behavior": "chase",
-      "hp": { "base": 140, "perWave": 14 },
-      "speed": { "min": 1.1, "variance": 0.3 },
+      "hp": {
+        "base": 140,
+        "perWave": 14
+      },
+      "speed": {
+        "min": 1.1,
+        "variance": 0.3
+      },
       "radius": 20,
       "contactDamagePerFrame": 0.4,
-      "spawnWeight": { "weight": 12, "minWave": 2 }
+      "spawnWeight": {
+        "weight": 12,
+        "minWave": 2
+      }
     },
     "boomer": {
       "type": 2,
       "behavior": "rushAndDetonate",
-      "hp": { "base": 30, "perWave": 4 },
-      "speed": { "min": 2.3, "variance": 0.5 },
+      "hp": {
+        "base": 30,
+        "perWave": 4
+      },
+      "speed": {
+        "min": 2.3,
+        "variance": 0.5
+      },
       "radius": 13,
-      "spawnWeight": { "weight": 18, "minWave": 2 },
+      "spawnWeight": {
+        "weight": 18,
+        "minWave": 2
+      },
       "triggerRadius": 60,
       "fuseFrames": 50,
       "explosionRadius": 75,
@@ -98,11 +166,20 @@
     "poison": {
       "type": 3,
       "behavior": "chaseAndTrail",
-      "hp": { "base": 50, "perWave": 6 },
-      "speed": { "min": 1.0, "variance": 0.3 },
+      "hp": {
+        "base": 50,
+        "perWave": 6
+      },
+      "speed": {
+        "min": 1.0,
+        "variance": 0.3
+      },
       "radius": 14,
       "contactDamagePerFrame": 0.4,
-      "spawnWeight": { "weight": 15, "minWave": 3 },
+      "spawnWeight": {
+        "weight": 15,
+        "minWave": 3
+      },
       "trailIntervalFrames": 12,
       "patchRadius": 26,
       "patchLifeFrames": 660,
@@ -110,13 +187,29 @@
     }
   },
   "startPositions": [
-    { "x": 160, "y": 160 },
-    { "x": 190, "y": 160 },
-    { "x": 160, "y": 190 },
-    { "x": 190, "y": 190 }
+    {
+      "worldCoords": true,
+      "x": 340,
+      "y": 420
+    },
+    {
+      "worldCoords": true,
+      "x": 360,
+      "y": 390
+    },
+    {
+      "worldCoords": true,
+      "x": 390,
+      "y": 410
+    },
+    {
+      "worldCoords": true,
+      "x": 360,
+      "y": 440
+    }
   ],
   "interactables": {
-    "_readme": "Fixed map fixtures — a stand-in for hand-crafted rooms until real maps exist. Positions are fractions of world width/height (0-1) so they scale automatically if 'world' size changes. All 'hold near it' interactions share holdToActivateFrames as their trigger time.",
+    "_readme": "Fixed map fixtures \u2014 a stand-in for hand-crafted rooms until real maps exist. Positions are fractions of world width/height (0-1) so they scale automatically if 'world' size changes. All 'hold near it' interactions share holdToActivateFrames as their trigger time.",
     "_rooms": "Set worldCoords to true to author x/y/corners in world pixels. Rooms build connected wall/door rectangles from adjacent corner pairs; door is a zero-based wall index or doors can be an array of indexes/objects.",
     "holdToActivateFrames": 60,
     "roomWallWidth": 20,
@@ -141,82 +234,661 @@
       "radius": 14,
       "interactRadius": 55
     },
-
     "medStation": {
       "interactRadius": 50,
       "radius": 18
     },
-
     "rooms": [
       {
-        "id": "spawn_bay_northwest",
-        "corners": [[80, 80], [420, 80], [420, 320], [80, 320], [80, 80]],
-        "doors": [{ "wall": 1, "id": "door_spawn_exit" }]
-      },
-      {
-        "id": "hallway_upper_top",
-        "corners": [[420, 160], [1050, 160], [1050, 240], [420, 240]],
-        "doors": []
-      },
-      {
-        "id": "starboard_armory",
-        "corners": [[1050, 80], [1450, 80], [1450, 360], [1050, 360], [1050, 80]],
-        "doors": [{ "wall": 2, "id": "door_armory_south" }]
-      },
-      {
-        "id": "vertical_choke_east",
-        "corners": [[1200, 360], [1280, 360], [1280, 750], [1200, 750]],
-        "doors": []
-      },
-      {
-        "id": "cargo_hold_central",
-        "corners": [[750, 750], [1450, 750], [1450, 1150], [750, 1150], [750, 750]],
+        "worldCoords": true,
+        "id": "room_1",
+        "corners": [
+          [
+            340,
+            300
+          ],
+          [
+            250,
+            450
+          ],
+          [
+            440,
+            570
+          ],
+          [
+            470,
+            520
+          ],
+          [
+            500,
+            470
+          ],
+          [
+            530,
+            420
+          ],
+          [
+            340,
+            300
+          ]
+        ],
         "doors": [
-          { "wall": 3, "id": "door_cargo_west" },
-          { "wall": 2, "id": "door_cargo_south" }
+          {
+            "wall": 3,
+            "id": "door_room_1_w3"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 3,
+            "room": "room_2"
+          }
         ]
       },
       {
-        "id": "medbay_southwest",
-        "corners": [[200, 950], [600, 950], [600, 1300], [200, 1300], [200, 950]],
-        "doors": [{ "wall": 2, "id": "door_medbay_exit" }]
+        "worldCoords": true,
+        "id": "room_2",
+        "corners": [
+          [
+            500,
+            470
+          ],
+          [
+            670,
+            570
+          ],
+          [
+            640,
+            620
+          ],
+          [
+            470,
+            520
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 1,
+            "id": "door_room_2_w1"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 1,
+            "room": "room_3"
+          }
+        ],
+        "connectedRoom": [
+          "room_1"
+        ]
       },
       {
-        "id": "lower_corridor",
-        "corners": [[400, 1400], [1650, 1400], [1650, 1480], [400, 1480]],
-        "doors": []
+        "worldCoords": true,
+        "id": "room_3",
+        "corners": [
+          [
+            670,
+            570
+          ],
+          [
+            690,
+            540
+          ],
+          [
+            720,
+            500
+          ],
+          [
+            750,
+            460
+          ],
+          [
+            780,
+            420
+          ],
+          [
+            830,
+            350
+          ],
+          [
+            950,
+            350
+          ],
+          [
+            1010,
+            350
+          ],
+          [
+            1080,
+            350
+          ],
+          [
+            1150,
+            350
+          ],
+          [
+            1220,
+            350
+          ],
+          [
+            1330,
+            460
+          ],
+          [
+            1330,
+            540
+          ],
+          [
+            1330,
+            590
+          ],
+          [
+            1330,
+            640
+          ],
+          [
+            1330,
+            700
+          ],
+          [
+            1330,
+            780
+          ],
+          [
+            1190,
+            920
+          ],
+          [
+            1140,
+            970
+          ],
+          [
+            1090,
+            1020
+          ],
+          [
+            890,
+            1020
+          ],
+          [
+            620,
+            760
+          ],
+          [
+            620,
+            650
+          ],
+          [
+            640,
+            620
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 12,
+            "id": "door_room_3_w12"
+          },
+          {
+            "wall": 17,
+            "id": "door_room_3_w17"
+          },
+          {
+            "wall": 7,
+            "id": "door_room_3_w7"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 12,
+            "room": "room_5"
+          },
+          {
+            "wall": 17,
+            "room": "room_6"
+          },
+          {
+            "wall": 7,
+            "room": "room_4"
+          }
+        ],
+        "connectedRoom": [
+          "room_2"
+        ]
       },
       {
-        "id": "vertical_choke_far_east",
-        "corners": [[1800, 500], [1880, 500], [1880, 1400], [1800, 1400]],
-        "doors": [{ "wall": 0, "id": "door_bridge_access" }]
+        "worldCoords": true,
+        "id": "room_4",
+        "corners": [
+          [
+            950,
+            350
+          ],
+          [
+            950,
+            100
+          ],
+          [
+            1150,
+            100
+          ],
+          [
+            1150,
+            350
+          ]
+        ],
+        "doors": [],
+        "connectedRoom": [
+          "room_3"
+        ]
       },
       {
-        "id": "command_bridge_northeast",
-        "corners": [[1700, 80], [2450, 80], [2450, 450], [1700, 450], [1700, 80]],
-        "doors": []
+        "worldCoords": true,
+        "id": "room_5",
+        "corners": [
+          [
+            1330,
+            540
+          ],
+          [
+            1780,
+            540
+          ],
+          [
+            1780,
+            700
+          ],
+          [
+            1330,
+            700
+          ]
+        ],
+        "doors": [],
+        "connectedRoom": [
+          "room_3"
+        ]
+      },
+      {
+        "worldCoords": true,
+        "id": "room_6",
+        "corners": [
+          [
+            1190,
+            920
+          ],
+          [
+            1320,
+            1040
+          ],
+          [
+            1270,
+            1090
+          ],
+          [
+            1140,
+            970
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 1,
+            "id": "door_room_6_w1"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 1,
+            "room": "room_7"
+          }
+        ],
+        "connectedRoom": [
+          "room_3"
+        ]
+      },
+      {
+        "worldCoords": true,
+        "id": "room_7",
+        "corners": [
+          [
+            1320,
+            1040
+          ],
+          [
+            1350,
+            1010
+          ],
+          [
+            1450,
+            1010
+          ],
+          [
+            1510,
+            1010
+          ],
+          [
+            1680,
+            1010
+          ],
+          [
+            1790,
+            1010
+          ],
+          [
+            1840,
+            1070
+          ],
+          [
+            1880,
+            1120
+          ],
+          [
+            1910,
+            1160
+          ],
+          [
+            1910,
+            1230
+          ],
+          [
+            1270,
+            1230
+          ],
+          [
+            1270,
+            1090
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 6,
+            "id": "door_room_7_w6"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 6,
+            "room": "room_8"
+          }
+        ],
+        "connectedRoom": [
+          "room_6"
+        ]
+      },
+      {
+        "worldCoords": true,
+        "id": "room_8",
+        "corners": [
+          [
+            1840,
+            1070
+          ],
+          [
+            2030,
+            890
+          ],
+          [
+            2080,
+            950
+          ],
+          [
+            1880,
+            1120
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 1,
+            "id": "door_room_8_w1"
+          }
+        ],
+        "doorGoes": [
+          {
+            "wall": 1,
+            "room": "room_9"
+          }
+        ],
+        "connectedRoom": [
+          "room_7"
+        ]
+      },
+      {
+        "worldCoords": true,
+        "id": "room_9",
+        "corners": [
+          [
+            2030,
+            890
+          ],
+          [
+            2030,
+            340
+          ],
+          [
+            2030,
+            120
+          ],
+          [
+            2030,
+            90
+          ],
+          [
+            2600,
+            90
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 1,
+            "id": "door_room_9_w1"
+          }
+        ],
+        "connectedRoom": [
+          "room_8"
+        ]
+      },
+      {
+        "worldCoords": true,
+        "id": "room_10",
+        "corners": [
+          [
+            1910,
+            1230
+          ],
+          [
+            1910,
+            1420
+          ],
+          [
+            1910,
+            1480
+          ],
+          [
+            1910,
+            1550
+          ],
+          [
+            1910,
+            1690
+          ],
+          [
+            1760,
+            1690
+          ],
+          [
+            1690,
+            1690
+          ],
+          [
+            1560,
+            1690
+          ],
+          [
+            1560,
+            1900
+          ]
+        ],
+        "doors": [
+          {
+            "wall": 5,
+            "id": "door_room_10_w5"
+          }
+        ]
       }
     ],
-    "walls": [
-      { "id": "wall_north", "x": 0.7, "y": 0.05, "width": 20, "height": 300, "rotation": 150 },
-      { "id": "wall_angled", "x": 0.6, "y": 0.25, "width": 20, "height": 300, "rotation": 60 }
-    ],
-    "doors": [
-      { "id": "door_mid", "x": 1.7, "y": 0.2, "width": 18, "height": 200, "openDurationFrames": 300, "waveSize": 10, "waveMinAlienType": 0, "interactRadius": 70 }
-    ],
-
     "turretPads": [
-      { "id": "turret_spawn_defense", "x": 380, "y": 200, "worldCoords": true },
-      { "id": "turret_cargo_center", "x": 1100, "y": 950, "worldCoords": true },
-      { "id": "turret_bridge_gate", "x": 1750, "y": 300, "worldCoords": true }
+      {
+        "id": "turret_5346",
+        "x": 990,
+        "y": 380,
+        "worldCoords": true
+      },
+      {
+        "id": "turret_6831",
+        "x": 1110,
+        "y": 380,
+        "worldCoords": true
+      },
+      {
+        "id": "turret_0840",
+        "x": 1870,
+        "y": 1160,
+        "worldCoords": true
+      },
+      {
+        "id": "turret_2050",
+        "x": 1790,
+        "y": 1070,
+        "worldCoords": true
+      },
+      {
+        "id": "turret_6412",
+        "x": 1990,
+        "y": 180,
+        "worldCoords": true
+      },
+      {
+        "id": "turret_9965",
+        "x": 1990,
+        "y": 360,
+        "worldCoords": true
+      }
     ],
     "lurePads": [
-      { "id": "lure_armory", "x": 1250, "y": 220, "worldCoords": true },
-      { "id": "lure_cargo", "x": 900, "y": 850, "worldCoords": true }
+      {
+        "id": "lure_1380",
+        "x": 1000,
+        "y": 670,
+        "worldCoords": true
+      },
+      {
+        "id": "lure_6243",
+        "x": 880,
+        "y": 1490,
+        "worldCoords": true
+      },
+      {
+        "id": "lure_8390",
+        "x": 1550,
+        "y": 140,
+        "worldCoords": true
+      }
     ],
     "medStations": [
-      { "id": "medstation_medbay", "x": 260, "y": 1050, "worldCoords": true },
-      { "id": "medstation_bridge", "x": 2350, "y": 140, "worldCoords": true }
+      {
+        "id": "medstation_5973",
+        "x": 1340,
+        "y": 1200,
+        "worldCoords": true
+      },
+      {
+        "id": "medstation_8032",
+        "x": 1640,
+        "y": 1200,
+        "worldCoords": true
+      }
+    ],
+    "alienSpawnPoints": [
+      {
+        "id": "spawn_room_1",
+        "x": 410,
+        "y": 433,
+        "worldCoords": true,
+        "room": "room_1"
+      },
+      {
+        "id": "spawn_room_2",
+        "x": 570,
+        "y": 545,
+        "worldCoords": true,
+        "room": "room_2"
+      },
+      {
+        "id": "spawn_room_3",
+        "x": 1001,
+        "y": 594,
+        "worldCoords": true,
+        "room": "room_3"
+      },
+      {
+        "id": "spawn_room_4",
+        "x": 1050,
+        "y": 225,
+        "worldCoords": true,
+        "room": "room_4"
+      },
+      {
+        "id": "spawn_room_5",
+        "x": 1555,
+        "y": 620,
+        "worldCoords": true,
+        "room": "room_5"
+      },
+      {
+        "id": "spawn_room_6",
+        "x": 1230,
+        "y": 1005,
+        "worldCoords": true,
+        "room": "room_6"
+      },
+      {
+        "id": "spawn_room_7",
+        "x": 1598,
+        "y": 1082,
+        "worldCoords": true,
+        "room": "room_7"
+      },
+      {
+        "id": "spawn_room_8",
+        "x": 1958,
+        "y": 1008,
+        "worldCoords": true,
+        "room": "room_8"
+      },
+      {
+        "id": "spawn_room_9",
+        "x": 2144,
+        "y": 306,
+        "worldCoords": true,
+        "room": "room_9"
+      },
+      {
+        "id": "spawn_room_10",
+        "x": 1791,
+        "y": 1593,
+        "worldCoords": true,
+        "room": "room_10"
+      }
     ]
+  },
+  "fog": {
+    "_readme": "Continuous per-player vision instead of room-based fog. Each player reveals an oval area (bigger while moving, shrinking to a minimum after holding still) oriented toward their facing angle. darkness(point) is 0 (fully lit) to 1 (fully dark): 0 inside a player's vision ellipse, ramping to 1 over 'penumbra' extra ellipse-radii beyond its edge, taking the darkest (safest) value across all players. Used to gate ambient alien spawns (interactables.alienSpawnPoints) and door-triggered waves.",
+    "enabled": true,
+    "color": "rgba(4,6,10,0.94)",
+    "defaultNearRadius": 150,
+    "defaultFarRadius": 320,
+    "flareHoldFrames": 150,
+    "decayFrames": 90,
+    "forwardStretch": 1.5,
+    "sideStretch": 0.9,
+    "penumbra": 0.6
   }
 }

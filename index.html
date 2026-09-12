@@ -185,16 +185,27 @@
     const CANVAS = document.getElementById("gameCanvas");
     const CTX = CANVAS.getContext("2d");
 
+    // Offscreen layer for the fog-of-war overlay: filled solid dark, then "holes" are punched
+    // out around each player with destination-out compositing, then the whole layer is drawn
+    // onto the main canvas in one pass. Keeping it separate means the erase-holes trick never
+    // touches the already-drawn world/aliens/players underneath.
+    const FOG_CANVAS = document.createElement("canvas");
+    const FOG_CTX = FOG_CANVAS.getContext("2d");
+
     let canvasW = window.innerWidth;
     let canvasH = window.innerHeight;
     CANVAS.width = canvasW;
     CANVAS.height = canvasH;
+    FOG_CANVAS.width = canvasW;
+    FOG_CANVAS.height = canvasH;
 
     window.addEventListener("resize", () => {
       canvasW = window.innerWidth;
       canvasH = window.innerHeight;
       CANVAS.width = canvasW;
       CANVAS.height = canvasH;
+      FOG_CANVAS.width = canvasW;
+      FOG_CANVAS.height = canvasH;
     });
 
     // --- Tunable balance, loaded from the bundled config.json ---
@@ -207,9 +218,15 @@
       world: { width: 2600, height: 1900, minZoom: 0.55, maxZoom: 1.9 },
       camera: { followLerp: 0.1 },
       classes: {
-        officer:    { name: "Officer",    hp: 120, speed: 3.2, fireRate: 140, damage: 22, color: "#00f0ff" },
-        specialist: { name: "Specialist", hp: 90,  speed: 4.0, fireRate: 80,  damage: 12, color: "#ffcc00" },
-        medic:      { name: "Medic",      hp: 100, speed: 3.5, fireRate: 180, damage: 18, color: "#33ff66", partyHealer: true }
+        officer:    { name: "Officer",    hp: 120, speed: 3.2, fireRate: 140, damage: 22, color: "#00f0ff", visionNearRadius: 150, visionFarRadius: 320 },
+        specialist: { name: "Specialist", hp: 90,  speed: 4.0, fireRate: 80,  damage: 12, color: "#ffcc00", visionNearRadius: 160, visionFarRadius: 400 },
+        medic:      { name: "Medic",      hp: 100, speed: 3.5, fireRate: 180, damage: 18, color: "#33ff66", partyHealer: true, visionNearRadius: 140, visionFarRadius: 280 }
+      },
+      fog: {
+        enabled: true, color: "rgba(4,6,10,0.94)",
+        defaultNearRadius: 150, defaultFarRadius: 320,
+        flareHoldFrames: 150, decayFrames: 90,
+        forwardStretch: 1.5, sideStretch: 0.9, penumbra: 0.6
       },
       difficulty: {
         default: "normal",
@@ -259,7 +276,8 @@
         medStations: [
           { id: "medstation_1", x: 0.3, y: 0.75 }
         ],
-        medStation: { interactRadius: 50, radius: 18 }
+        medStation: { interactRadius: 50, radius: 18 },
+        alienSpawnPoints: []
       }
     };
 
@@ -275,6 +293,8 @@
     let ALIEN_SPAWN_POOL = [];     // entries from ALIEN_DEFS_BY_TYPE that have a spawnWeight
     let DIFFICULTY_LEVELS, DIFFICULTY_KEYS, DEFAULT_DIFFICULTY;
     let INTERACTABLES_CFG;         // raw cfg.interactables, read directly by name where used
+    let FOG_ENABLED, FOG_COLOR, FOG_NEAR_DEFAULT, FOG_FAR_DEFAULT, FOG_FLARE_HOLD, FOG_DECAY_FRAMES, FOG_FORWARD_STRETCH, FOG_SIDE_STRETCH, FOG_PENUMBRA;
+    let alienSpawnPointsWorld = []; // computed once per mission from interactables.alienSpawnPoints
 
     function deriveConfig(cfg) {
       CONFIG = cfg;
@@ -319,6 +339,17 @@
       DEFAULT_DIFFICULTY = (cfg.difficulty && cfg.difficulty.default) || DIFFICULTY_KEYS[0];
 
       INTERACTABLES_CFG = cfg.interactables || DEFAULT_CONFIG.interactables;
+
+      const fog = cfg.fog || DEFAULT_CONFIG.fog;
+      FOG_ENABLED = fog.enabled !== false;
+      FOG_COLOR = fog.color;
+      FOG_NEAR_DEFAULT = fog.defaultNearRadius;
+      FOG_FAR_DEFAULT = fog.defaultFarRadius;
+      FOG_FLARE_HOLD = fog.flareHoldFrames;
+      FOG_DECAY_FRAMES = fog.decayFrames;
+      FOG_FORWARD_STRETCH = fog.forwardStretch;
+      FOG_SIDE_STRETCH = fog.sideStretch;
+      FOG_PENUMBRA = fog.penumbra;
     }
 
     // Full refresh: re-derive everything AND redraw the class selector. Only safe to call
@@ -357,8 +388,12 @@
         // roster. Sections you omit entirely keep their default values. This way editing
         // "aliens" to rebalance enemies can't accidentally leave a stray default class around,
         // and you can fully swap out the marine roster without deleting anything by hand.
+        // Iterates the union of both key sets (not just DEFAULT_CONFIG's own keys) so a
+        // brand-new top-level section you add — one the built-in fallback has never heard
+        // of, like "startPositions" — still comes through instead of being silently dropped.
         const merged = { ...DEFAULT_CONFIG };
-        for (const key of Object.keys(DEFAULT_CONFIG)) {
+        const allKeys = new Set([...Object.keys(DEFAULT_CONFIG), ...Object.keys(loaded)]);
+        for (const key of allKeys) {
           if (loaded[key] !== undefined) merged[key] = loaded[key];
         }
         applyConfig(merged);
@@ -395,7 +430,8 @@
       hp: CLASSES[selectedClassKey].hp, maxHp: CLASSES[selectedClassKey].hp,
       classKey: selectedClassKey,
       isDowned: false, isDead: false, reviveProgress: 0,
-      lastShot: 0
+      lastShot: 0,
+      isMoving: false, flareTimer: 0, currentRadius: 0
     };
     players[myId] = localPlayer;
 
@@ -428,6 +464,9 @@
     let medStations = {};  // id -> {x,y,usedBy:{playerId:true}, medicChargeUsed, partyHoldProgress}
     let turretIdCounter = 1;
     let lureIdCounter = 1;
+    let openedRooms = new Set(); // room ids whose entry door has opened at least once this mission
+    let roomsById = {};          // room id -> raw config room object (for connectedRoom fallback lookups)
+    let roomPolygonsById = {};   // room id -> {points:[[x,y],...] in world space, area}
 
     let lastMoveBroadcast = 0;
     let lastHostBroadcast = 0;
@@ -458,6 +497,13 @@
       return {
         x: (sx - canvasW / 2) / camera.zoom + camera.x,
         y: (sy - canvasH / 2) / camera.zoom + camera.y
+      };
+    }
+
+    function worldToScreen(wx, wy) {
+      return {
+        x: (wx - camera.x) * camera.zoom + canvasW / 2,
+        y: (wy - camera.y) * camera.zoom + canvasH / 2
       };
     }
 
@@ -596,12 +642,14 @@
           hp: CLASSES[classKey].hp,
           maxHp: CLASSES[classKey].hp,
           classKey,
-          isDowned: false, isDead: false, reviveProgress: 0, lastShot: 0
+          isDowned: false, isDead: false, reviveProgress: 0, lastShot: 0,
+          isMoving: false, flareTimer: 0, currentRadius: 0
         };
       }
       p.x = obj.x; p.y = obj.y; p.angle = obj.a;
       p.classKey = CLASS_KEYS[obj.c] || p.classKey;
       p.isChanneling = !!obj.ch;
+      p.isMoving = !!obj.mv;
       if (obj.n) p.name = obj.n;
     }
 
@@ -859,9 +907,14 @@
         p.isDowned = false; p.isDead = false; p.reviveProgress = 0;
 
         // Assign to a unique start position from config (falls back to pos 0 if more players than spots)
-        const pos = STARTPOSITIONS[index % startPositions.length];
+        const pos = STARTPOSITIONS[index % STARTPOSITIONS.length];
         p.x = pos.x;
         p.y = pos.y;
+
+        // Fresh flare at mission start — eyes adjusting after the crash, briefly see further
+        p.flareTimer = FOG_FLARE_HOLD;
+        p.currentRadius = classVisionRadii(p.classKey).far;
+        p.isMoving = false;
       });
 
       waveIndex = 1; kills = 0; aliens = {}; bullets = []; particles = [];
@@ -889,6 +942,45 @@
         x: worldCoords ? x : x * WORLD_W,
         y: worldCoords ? y : y * WORLD_H
       };
+    }
+
+    function polygonArea(points) {
+      let area = 0;
+      const n = points.length;
+      for (let i = 0; i < n; i++) {
+        const [x1, y1] = points[i];
+        const [x2, y2] = points[(i + 1) % n];
+        area += x1 * y2 - x2 * y1;
+      }
+      return Math.abs(area) / 2;
+    }
+
+    function pointInPolygon(x, y, points) {
+      let inside = false;
+      const n = points.length;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const [xi, yi] = points[i];
+        const [xj, yj] = points[j];
+        const intersects = (yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    // Which room a point is "in", for rooms that overlap or nest (a corridor drawn around a
+    // smaller chamber, concentric decks, etc.): collect every room whose polygon contains the
+    // point, then take the one with the smallest area — the most specific match wins, the same
+    // way a smaller/inner shape should read as "the room" rather than the larger one around it.
+    function roomContainingPoint(x, y) {
+      let best = null, bestArea = Infinity;
+      for (const id in roomPolygonsById) {
+        const rp = roomPolygonsById[id];
+        if (rp.points.length >= 3 && pointInPolygon(x, y, rp.points) && rp.area < bestArea) {
+          bestArea = rp.area;
+          best = id;
+        }
+      }
+      return best;
     }
 
     function mapRectCenter(item, parent) {
@@ -924,6 +1016,13 @@
       return list.find(value => typeof value === "object" && value.wall === wallIndex) || {};
     }
 
+    // Which room a specific door leads to, from this room's own authored doorGoes list
+    // (parallel in spirit to roomDoorConfig — matched by wall index, not guessed).
+    function roomDoorGoesTarget(room, wallIndex) {
+      const entry = (room.doorGoes || []).find(g => g.wall === wallIndex);
+      return entry ? entry.room : undefined;
+    }
+
     // A room is a list of corners; segments between consecutive corners become walls unless
     // marked as a door index. Segments only run between the given corners — repeat the first
     // corner at the end to close a loop, or leave it open to string rooms together.
@@ -947,7 +1046,9 @@
             waveMinAlienType: room.waveMinAlienType || 0,
             interactRadius: room.interactRadius || 70,
             ...extra,
-            id: extra.id || `${room.id || "room"}_door_${i}`
+            id: extra.id || `${room.id || "room"}_door_${i}`,
+            ownerRoom: room.id,
+            revealsRoom: roomDoorGoesTarget(room, i)
           };
           doors[cfg.id] = {
             ...rectFromSegment(cfg.id, cfg, from, to, extra.width || doorWidth),
@@ -968,6 +1069,20 @@
     function initInteractables() {
       const ic = INTERACTABLES_CFG;
       const diff = currentDifficulty();
+      roomsById = {};
+      for (const room of (ic.rooms || [])) roomsById[room.id] = room;
+
+      roomPolygonsById = {};
+      for (const room of (ic.rooms || [])) {
+        const corners = room.corners || [];
+        if (corners.length < 3) continue;
+        const points = corners.map(c => {
+          const p = mapPoint(c, room.worldCoords !== undefined ? room : ic);
+          return [p.x, p.y];
+        });
+        roomPolygonsById[room.id] = { points, area: polygonArea(points) };
+      }
+
       walls = {};
       for (const w of (ic.walls || [])) {
         const pos = mapRectCenter(w, ic);
@@ -1002,6 +1117,12 @@
         const pos = mapPoint(s, ic);
         medStations[s.id] = { x: pos.x, y: pos.y, usedBy: {}, medicChargeUsed: false, holdProgress: 0, channelerId: null };
       }
+
+      alienSpawnPointsWorld = (ic.alienSpawnPoints || []).map(pt => {
+        const pos = mapPoint(pt, ic);
+        return { id: pt.id, x: pos.x, y: pos.y, room: pt.room };
+      });
+      openedRooms = new Set();
     }
 
     function endMission(complete, finalKills) {
@@ -1060,13 +1181,24 @@
       };
     }
 
+    // Seeds an alien's spawn-grace state: whatever obstacles it happens to spawn inside
+    // (an imprecise spawn point, a tight corner) are ignorable until it walks clear of them —
+    // see resolveAlienCollision. Empty set = normal full collision from frame one.
+    function initAlienGrace(x, y) {
+      return { graceIgnore: new Set(overlappingObstacles(x, y)), graceFramesLeft: 90 };
+    }
+
     function spawnAlien(forceType) {
       let x, y;
-      if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -20 : WORLD_W + 20; y = Math.random() * WORLD_H; }
+      const darkCandidates = alienSpawnPointsWorld.filter(pt => pointDarkness(pt.x, pt.y) >= 0.98);
+      if (darkCandidates.length > 0) {
+        const pick = darkCandidates[Math.floor(Math.random() * darkCandidates.length)];
+        x = pick.x; y = pick.y;
+      } else if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -20 : WORLD_W + 20; y = Math.random() * WORLD_H; }
       else { x = Math.random() * WORLD_W; y = Math.random() < 0.5 ? -20 : WORLD_H + 20; }
       const type = forceType !== undefined ? forceType : pickWeightedAlienType();
       const stats = makeAlienStats(type);
-      aliens[nextAlienId()] = { x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0 };
+      aliens[nextAlienId()] = { x, y, hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0, ...initAlienGrace(x, y) };
     }
 
     function spawnAlienNear(x, y, forceType) {
@@ -1074,10 +1206,12 @@
       const stats = makeAlienStats(type);
       const angle = Math.random() * Math.PI * 2;
       const dist = 40 + Math.random() * 70;
+      const sx = clampNum(x + Math.cos(angle) * dist, 0, WORLD_W);
+      const sy = clampNum(y + Math.sin(angle) * dist, 0, WORLD_H);
       aliens[nextAlienId()] = {
-        x: clampNum(x + Math.cos(angle) * dist, 0, WORLD_W),
-        y: clampNum(y + Math.sin(angle) * dist, 0, WORLD_H),
-        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0
+        x: sx, y: sy,
+        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type, fuse: -1, trailTimer: 0,
+        ...initAlienGrace(sx, sy)
       };
     }
 
@@ -1088,19 +1222,58 @@
     function spawnHive() {
       const id = nextAlienId();
       const stats = makeAlienStats(4);
+      const hx = WORLD_W / 2 + (Math.random() - 0.5) * 500;
+      const hy = WORLD_H / 2 + (Math.random() - 0.5) * 400;
       aliens[id] = {
-        x: WORLD_W / 2 + (Math.random() - 0.5) * 500,
-        y: WORLD_H / 2 + (Math.random() - 0.5) * 400,
-        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type: 4
+        x: hx, y: hy,
+        hp: stats.hp, maxHp: stats.hp, speed: stats.speed, radius: stats.radius, type: 4,
+        ...initAlienGrace(hx, hy)
       };
       hiveAlienId = id;
     }
 
     // --- Doors: hold-to-open (channel), then a focused wave spawns while it slowly opens ---
+    // Wave spawn points are chosen from wherever it's actually dark — the door's own room
+    // (now freshly "known" since the party just reached it) plus any other room already
+    // opened this mission, and specifically the room this door reveals (not a random one).
+    // Falls back to the old spawn-around-the-door behavior if nothing qualifies, so a wave
+    // never silently fails to appear.
+    function candidateDarkSpawnPoints(door) {
+      const cfg = door.cfg;
+      const eligibleRooms = new Set(openedRooms);
+      if (cfg.ownerRoom) eligibleRooms.add(cfg.ownerRoom);
+      if (cfg.revealsRoom) eligibleRooms.add(cfg.revealsRoom);
+      // connectedRoom is a list of authored "safe fallback previous rooms" (a room like an
+      // atrium or ship deck can have several rooms attached) — each only counts once it's
+      // actually been revealed, so this never pulls in a room the party hasn't reached yet.
+      const ownerRoomCfg = cfg.ownerRoom && roomsById[cfg.ownerRoom];
+      if (ownerRoomCfg && Array.isArray(ownerRoomCfg.connectedRoom)) {
+        for (const rid of ownerRoomCfg.connectedRoom) {
+          if (openedRooms.has(rid)) eligibleRooms.add(rid);
+        }
+      }
+      if (eligibleRooms.size === 0) return [];
+
+      const DARK_THRESHOLD = 0.8;
+      const candidates = alienSpawnPointsWorld.filter(pt => pt.room && eligibleRooms.has(pt.room) && pointDarkness(pt.x, pt.y) >= DARK_THRESHOLD);
+      candidates.sort((a, b) => Math.hypot(a.x - door.x, a.y - door.y) - Math.hypot(b.x - door.x, b.y - door.y));
+      return candidates.slice(0, 2);
+    }
+
     function triggerDoorWave(door) {
       const cfg = door.cfg;
-      for (let i = 0; i < (cfg.waveSize || 8); i++) {
-        spawnAlienNear(door.x, door.y, i === 0 ? cfg.waveMinAlienType : undefined);
+      if (cfg.ownerRoom) openedRooms.add(cfg.ownerRoom); // reaching this door means its room is already "known"
+      const points = candidateDarkSpawnPoints(door);
+      const waveSize = cfg.waveSize || 8;
+      if (points.length > 0) {
+        for (let i = 0; i < waveSize; i++) {
+          const pt = points[i % points.length];
+          spawnAlienNear(pt.x, pt.y, i === 0 ? cfg.waveMinAlienType : undefined);
+        }
+      } else {
+        for (let i = 0; i < waveSize; i++) {
+          spawnAlienNear(door.x, door.y, i === 0 ? cfg.waveMinAlienType : undefined);
+        }
       }
     }
 
@@ -1109,7 +1282,11 @@
         const d = doors[id];
         if (d.state === "opening") {
           d.timer--;
-          if (d.timer <= 0) d.state = "open";
+          if (d.timer <= 0) {
+            d.state = "open";
+            if (d.cfg.ownerRoom) openedRooms.add(d.cfg.ownerRoom);
+            if (d.cfg.revealsRoom) openedRooms.add(d.cfg.revealsRoom);
+          }
         }
       }
     }
@@ -1279,6 +1456,60 @@
       }
     }
 
+    // --- Fog of war: continuous per-player vision, not room-based ---
+    // Each player reveals an oval area oriented toward their facing angle: bigger while
+    // moving, easing down to a smaller permanent minimum a couple seconds after they stop.
+    // This same darkness model both drives the visual fog overlay and gates ambient alien
+    // spawn points, so "how dark is it here" always means the same thing everywhere.
+
+    function classVisionRadii(classKey) {
+      const cls = CLASSES[classKey] || CLASSES[CLASS_KEYS[0]];
+      return {
+        near: cls.visionNearRadius !== undefined ? cls.visionNearRadius : FOG_NEAR_DEFAULT,
+        far: cls.visionFarRadius !== undefined ? cls.visionFarRadius : FOG_FAR_DEFAULT
+      };
+    }
+
+    // Called every frame, for every known player (local and remote alike), so fog rendering
+    // and host-side spawn gating are always working off freshly-decayed values.
+    function updatePlayerVision(p) {
+      const { near, far } = classVisionRadii(p.classKey);
+      if (p.flareTimer === undefined || p.currentRadius === undefined) {
+        p.flareTimer = FOG_FLARE_HOLD;
+        p.currentRadius = far;
+      }
+      if (p.isMoving) p.flareTimer = FOG_FLARE_HOLD;
+      else if (p.flareTimer > 0) p.flareTimer--;
+
+      const target = p.flareTimer > 0 ? far : near;
+      const rate = 1 / Math.max(1, FOG_DECAY_FRAMES);
+      p.currentRadius += (target - p.currentRadius) * rate;
+    }
+
+    function visionEllipseForPlayer(p) {
+      const r = p.currentRadius || FOG_NEAR_DEFAULT;
+      return { forward: r * FOG_FORWARD_STRETCH, side: r * FOG_SIDE_STRETCH, angle: p.angle || 0 };
+    }
+
+    // 0 = fully lit, 1 = fully dark. Takes the darkest (safest) reading across every living
+    // player, since being lit by even one of them makes a spot lit.
+    function pointDarkness(x, y) {
+      let minDarkness = 1;
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const ell = visionEllipseForPlayer(p);
+        const dx = x - p.x, dy = y - p.y;
+        const cosA = Math.cos(-ell.angle), sinA = Math.sin(-ell.angle);
+        const localX = dx * cosA - dy * sinA;
+        const localY = dx * sinA + dy * cosA;
+        const norm = Math.sqrt((localX * localX) / (ell.forward * ell.forward) + (localY * localY) / (ell.side * ell.side));
+        const d = clampNum((norm - 1) / Math.max(0.01, FOG_PENUMBRA), 0, 1);
+        if (d < minDarkness) minDarkness = d;
+        if (minDarkness === 0) break;
+      }
+      return minDarkness;
+    }
+
     function livingTarget() {
       const candidates = Object.values(players).filter(p => !p.isDowned && !p.isDead);
       return candidates.length ? candidates : Object.values(players);
@@ -1442,17 +1673,36 @@
       return Math.hypot(localX - cx, localY - cy) < radius;
     }
 
-    function resolveWorldCollision(fromX, fromY, toX, toY) {
+    // Every obstacle (wall or closed/opening door) currently overlapping this point, as
+    // "wall:id" / "door:id" keys — used to seed an alien's spawn-grace ignore set.
+    function overlappingObstacles(x, y) {
+      const found = [];
+      for (const id in walls) {
+        if (isPointInRotatedBox(x, y, walls[id])) found.push("wall:" + id);
+      }
+      for (const id in doors) {
+        const d = doors[id];
+        if (d.state === "open") continue;
+        if (isPointInRotatedBox(x, y, d)) found.push("door:" + id);
+      }
+      return found;
+    }
+
+    // Shared collision core. ignoreSet (if given) excludes specific obstacles from blocking —
+    // used only for an alien's spawn-grace period, never for players.
+    function resolveCollision(fromX, fromY, toX, toY, ignoreSet) {
       let x = fromX, y = fromY;
 
       const blockedAt = (px, py) => {
         for (const id in walls) {
+          if (ignoreSet && ignoreSet.has("wall:" + id)) continue;
           if (isPointInRotatedBox(px, py, walls[id])) return true;
         }
 
         for (const id in doors) {
           const d = doors[id];
           if (d.state === "open") continue;
+          if (ignoreSet && ignoreSet.has("door:" + id)) continue;
           if (isPointInRotatedBox(px, py, d)) return true;
         }
 
@@ -1462,6 +1712,28 @@
       if (!blockedAt(toX, y)) x = toX;
       if (!blockedAt(x, toY)) y = toY;
       return { x, y };
+    }
+
+    function resolveWorldCollision(fromX, fromY, toX, toY) {
+      return resolveCollision(fromX, fromY, toX, toY, null);
+    }
+
+    // Alien-specific: if this alien spawned overlapping some obstacle(s) (an imprecise spawn
+    // point, a tight room corner, etc.), it's allowed to walk OUT of exactly those — normal
+    // collision still blocks anything new, and once it clears one it can never re-enter it.
+    // A generous frame cap guards against never fully escaping in some degenerate geometry.
+    function resolveAlienCollision(a, fromX, fromY, toX, toY) {
+      if (!a.graceIgnore || a.graceIgnore.size === 0) {
+        return resolveCollision(fromX, fromY, toX, toY, null);
+      }
+      const stillInside = new Set(overlappingObstacles(fromX, fromY).filter(key => a.graceIgnore.has(key)));
+      a.graceIgnore = stillInside;
+      a.graceFramesLeft = (a.graceFramesLeft !== undefined ? a.graceFramesLeft : 90) - 1;
+      if (a.graceIgnore.size === 0 || a.graceFramesLeft <= 0) {
+        a.graceIgnore = null;
+        return resolveCollision(fromX, fromY, toX, toY, null);
+      }
+      return resolveCollision(fromX, fromY, toX, toY, a.graceIgnore);
     }
 
     // --- Per-frame update ---
@@ -1492,6 +1764,7 @@
       const resolved = resolveWorldCollision(localPlayer.x, localPlayer.y, rawX, rawY);
       localPlayer.x = Math.max(16, Math.min(WORLD_W - 16, resolved.x));
       localPlayer.y = Math.max(16, Math.min(WORLD_H - 16, resolved.y));
+      localPlayer.isMoving = (mx !== 0 || my !== 0);
 
       if (aimActive) localPlayer.angle = Math.atan2(aimY, aimX);
       else {
@@ -1505,6 +1778,11 @@
         localPlayer.lastShot = now;
       }
 
+      // Fog-of-war vision decay/flare runs for every known player (local + remote), every
+      // frame, on every client — purely deterministic from each player's isMoving flag, so
+      // it doesn't need its own network messages beyond what's already being broadcast.
+      for (const p of Object.values(players)) updatePlayerVision(p);
+
       // Camera smoothly follows the local player, clamped so the view never shows past the arena edge
       const viewHalfW = (canvasW / 2) / camera.zoom;
       const viewHalfH = (canvasH / 2) / camera.zoom;
@@ -1514,16 +1792,34 @@
       camera.y += (targetY - camera.y) * CAMERA_FOLLOW_LERP;
 
       if (now - lastMoveBroadcast > 55) {
-        sendRT({ t: "p", id: myId, x: localPlayer.x, y: localPlayer.y, a: localPlayer.angle, c: CLASS_KEYS.indexOf(localPlayer.classKey), n: selfName, ch: localPlayer.isChanneling ? 1 : 0 });
+        sendRT({ t: "p", id: myId, x: localPlayer.x, y: localPlayer.y, a: localPlayer.angle, c: CLASS_KEYS.indexOf(localPlayer.classKey), n: selfName, ch: localPlayer.isChanneling ? 1 : 0, mv: localPlayer.isMoving ? 1 : 0 });
         lastMoveBroadcast = now;
       }
 
-      // Bullets: always move/expire for everyone; only host applies damage
+      // Bullets: always move/expire for everyone; only host applies damage. Walls and
+      // closed/opening doors stop bullets outright — checked on every client so a shot
+      // visibly stops at the wall everywhere, not just where the damage is calculated.
       for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.x += b.vx; b.y += b.vy; b.life--;
 
-        if (isHost) {
+        let hitWall = false;
+        for (const id in walls) {
+          if (isPointInRotatedBox(b.x, b.y, walls[id], 4)) { hitWall = true; break; }
+        }
+        if (!hitWall) {
+          for (const id in doors) {
+            const d = doors[id];
+            if (d.state === "open") continue;
+            if (isPointInRotatedBox(b.x, b.y, d, 4)) { hitWall = true; break; }
+          }
+        }
+        if (hitWall) {
+          b.life = 0;
+          particles.push({ x: b.x, y: b.y, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, color: "#8899aa", life: 8 });
+        }
+
+        if (isHost && !hitWall) {
           for (const aid in aliens) {
             const a = aliens[aid];
             if (Math.hypot(b.x - a.x, b.y - a.y) < a.radius + 4) {
@@ -1557,6 +1853,15 @@
 
     // --- Host-only authoritative simulation ---
     function hostTick(now) {
+      // Ground-truth room tracking: whatever room a living player is physically standing in
+      // right now counts as entered/known, independent of door-open events (which still mark
+      // a room known immediately on trigger, ahead of anyone actually walking there).
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const rid = roomContainingPoint(p.x, p.y);
+        if (rid) openedRooms.add(rid);
+      }
+
       waveSpawnTimer++;
       const spawnIntervalMult = currentDifficulty().alienSpawnIntervalMultiplier || 1;
       if (missionPhase === "WAVES") {
@@ -1587,7 +1892,7 @@
           }
           if (nearest) {
             const away = Math.atan2(a.y - nearest.y, a.x - nearest.x);
-            const resolved = resolveWorldCollision(a.x, a.y, a.x + Math.cos(away) * a.speed, a.y + Math.sin(away) * a.speed);
+            const resolved = resolveAlienCollision(a, a.x, a.y, a.x + Math.cos(away) * a.speed, a.y + Math.sin(away) * a.speed);
             a.x = resolved.x; a.y = resolved.y;
           }
           a.x = clampNum(a.x, HIVE_FLEE_MARGIN, WORLD_W - HIVE_FLEE_MARGIN);
@@ -1604,7 +1909,7 @@
               const desiredAngle = Math.atan2(target.y - a.y, target.x - a.x);
               const angle = chaseAngleWithAvoidance(a, desiredAngle);
               const intendedX = a.x + Math.cos(angle) * a.speed, intendedY = a.y + Math.sin(angle) * a.speed;
-              const resolved = resolveWorldCollision(a.x, a.y, intendedX, intendedY);
+              const resolved = resolveAlienCollision(a, a.x, a.y, intendedX, intendedY);
               updateAvoidance(a, Math.hypot(resolved.x - intendedX, resolved.y - intendedY) > 0.01);
               a.x = resolved.x; a.y = resolved.y;
             }
@@ -1637,7 +1942,7 @@
           const desiredAngle = Math.atan2(target.y - a.y, target.x - a.x);
           const angle = chaseAngleWithAvoidance(a, desiredAngle);
           const intendedX = a.x + Math.cos(angle) * a.speed, intendedY = a.y + Math.sin(angle) * a.speed;
-          const resolved = resolveWorldCollision(a.x, a.y, intendedX, intendedY);
+          const resolved = resolveAlienCollision(a, a.x, a.y, intendedX, intendedY);
           updateAvoidance(a, Math.hypot(resolved.x - intendedX, resolved.y - intendedY) > 0.01);
           a.x = resolved.x; a.y = resolved.y;
 
@@ -2140,6 +2445,41 @@ function drawProgressRing(x, y, radius, pct, color) {
       });
 
       CTX.restore();
+      renderFogOfWar();
+    }
+
+    function renderFogOfWar() {
+      if (!FOG_ENABLED) return;
+      FOG_CTX.globalCompositeOperation = "source-over";
+      FOG_CTX.fillStyle = FOG_COLOR;
+      FOG_CTX.fillRect(0, 0, canvasW, canvasH);
+
+      FOG_CTX.globalCompositeOperation = "destination-out";
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const ell = visionEllipseForPlayer(p);
+        const screenPos = worldToScreen(p.x, p.y);
+        const rx = ell.forward * camera.zoom;
+        const ry = ell.side * camera.zoom;
+        if (rx <= 0 || ry <= 0) continue;
+
+        FOG_CTX.save();
+        FOG_CTX.translate(screenPos.x, screenPos.y);
+        FOG_CTX.rotate(ell.angle);
+        FOG_CTX.scale(rx, ry);
+        const grad = FOG_CTX.createRadialGradient(0, 0, 0, 0, 0, 1);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(0.7, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        FOG_CTX.fillStyle = grad;
+        FOG_CTX.beginPath();
+        FOG_CTX.arc(0, 0, 1, 0, Math.PI * 2);
+        FOG_CTX.fill();
+        FOG_CTX.restore();
+      }
+      FOG_CTX.globalCompositeOperation = "source-over";
+
+      CTX.drawImage(FOG_CANVAS, 0, 0);
     }
 
     // --- Init ---
