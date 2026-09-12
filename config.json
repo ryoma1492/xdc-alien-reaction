@@ -89,7 +89,7 @@
   "waves": {
     "killsPerWaveStep": 15,
     "targetWave": 6,
-    "maxConcurrentAliens": 26,
+    "maxConcurrentAliens": 40,
     "spawnTimerFrames": {
       "base": 120,
       "perWaveReduction": 10,
@@ -883,12 +883,12 @@
     "_readme": "Continuous per-player vision instead of room-based fog. Each player reveals an oval area (bigger while moving, shrinking to a minimum after holding still) oriented toward their facing angle. darkness(point) is 0 (fully lit) to 1 (fully dark): 0 inside a player's vision ellipse, ramping to 1 over 'penumbra' extra ellipse-radii beyond its edge, taking the darkest (safest) value across all players. Used to gate ambient alien spawns (interactables.alienSpawnPoints) and door-triggered waves.",
     "enabled": true,
     "color": "rgba(4,6,10,0.94)",
-    "defaultNearRadius": 150,
-    "defaultFarRadius": 320,
+    "defaultNearRadius": 100,
+    "defaultFarRadius": 260,
     "flareHoldFrames": 150,
     "decayFrames": 90,
     "forwardStretch": 1.5,
-    "sideStretch": 0.9,
+    "sideStretch": 0.6,
     "penumbra": 0.6
   }
 }
