@@ -51,20 +51,21 @@ jobs:
           output_dir.mkdir(exist_ok=True)
           output_path = output_dir / f"{package_name}-{version}.xdc"
 
-            excluded_roots = {".git", ".github", "dist"}
-            excluded_files = {"LICENSE", "README.md"}
+          excluded_roots = {".git", ".github", "dist"}
+          excluded_files = {"LICENSE", "README.md"}
+
           with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
               for path in sorted(root.rglob("*")):
                   relative_path = path.relative_to(root)
-                if (
-                  path.is_dir()
-                  or relative_path.parts[0] in excluded_roots
-                  or relative_path.as_posix() in excluded_files
-                ):
+                  if (
+                      path.is_dir()
+                      or relative_path.parts[0] in excluded_roots
+                      or relative_path.as_posix() in excluded_files
+                  ):
                       continue
                   archive.write(path, relative_path.as_posix())
 
-            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
               output_file.write(f"package={output_path.name}\n")
 
       - name: Upload .xdc artifact
