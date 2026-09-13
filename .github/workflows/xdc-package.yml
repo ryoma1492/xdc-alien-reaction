@@ -54,7 +54,8 @@ jobs:
           excluded_roots = {".git", ".github", "dist"}
           excluded_files = {"LICENSE", "README.md"}
 
-          with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+          # ZIP_STORED packs files instantly without spending CPU cycles on DEFLATE compression
+          with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_STORED) as archive:
               for path in sorted(root.rglob("*")):
                   relative_path = path.relative_to(root)
                   if (
