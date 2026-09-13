@@ -23,8 +23,8 @@
       "fireRate": 140,
       "damage": 22,
       "color": "#00f0ff",
-      "visionNearRadius": 150,
-      "visionFarRadius": 320
+      "visionNearRadius": 90,
+      "visionFarRadius": 200
     },
     "specialist": {
       "name": "Specialist",
@@ -33,8 +33,8 @@
       "fireRate": 80,
       "damage": 12,
       "color": "#ffcc00",
-      "visionNearRadius": 160,
-      "visionFarRadius": 400
+      "visionNearRadius": 70,
+      "visionFarRadius": 180
     },
     "medic": {
       "name": "Medic",
@@ -44,8 +44,8 @@
       "damage": 18,
       "color": "#33ff66",
       "partyHealer": true,
-      "visionNearRadius": 140,
-      "visionFarRadius": 280
+      "visionNearRadius": 120,
+      "visionFarRadius": 230
     }
   },
   "difficulty": {
@@ -885,9 +885,9 @@
     "color": "rgba(4,6,10,0.94)",
     "defaultNearRadius": 100,
     "defaultFarRadius": 260,
-    "flareHoldFrames": 150,
-    "decayFrames": 90,
-    "forwardStretch": 1.5,
+    "flareHoldFrames": 10,
+    "decayFrames": 30,
+    "forwardStretch": 0.5,
     "sideStretch": 0.6,
     "penumbra": 0.6
   }
