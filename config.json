@@ -23,7 +23,7 @@
       "fireRate": 140,
       "damage": 22,
       "color": "#00f0ff",
-      "visionNearRadius": 90,
+      "visionNearRadius": 170,
       "visionFarRadius": 200
     },
     "specialist": {
@@ -33,7 +33,7 @@
       "fireRate": 80,
       "damage": 12,
       "color": "#ffcc00",
-      "visionNearRadius": 70,
+      "visionNearRadius": 140,
       "visionFarRadius": 180
     },
     "medic": {
@@ -44,7 +44,7 @@
       "damage": 18,
       "color": "#33ff66",
       "partyHealer": true,
-      "visionNearRadius": 120,
+      "visionNearRadius": 190,
       "visionFarRadius": 230
     }
   },
@@ -883,12 +883,12 @@
     "_readme": "Continuous per-player vision instead of room-based fog. Each player reveals an oval area (bigger while moving, shrinking to a minimum after holding still) oriented toward their facing angle. darkness(point) is 0 (fully lit) to 1 (fully dark): 0 inside a player's vision ellipse, ramping to 1 over 'penumbra' extra ellipse-radii beyond its edge, taking the darkest (safest) value across all players. Used to gate ambient alien spawns (interactables.alienSpawnPoints) and door-triggered waves.",
     "enabled": true,
     "color": "rgba(4,6,10,0.94)",
-    "defaultNearRadius": 100,
+    "defaultNearRadius": 150,
     "defaultFarRadius": 260,
-    "flareHoldFrames": 10,
-    "decayFrames": 30,
-    "forwardStretch": 0.5,
-    "sideStretch": 0.6,
+    "flareHoldFrames": 20,
+    "decayFrames": 40,
+    "forwardStretch": 0.8,
+    "sideStretch": 0.3,
     "penumbra": 0.6
   }
 }
