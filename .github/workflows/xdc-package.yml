@@ -75,3 +75,4 @@ jobs:
           name: ${{ steps.build.outputs.package }}
           path: dist/${{ steps.build.outputs.package }}
           if-no-files-found: error
+          compression-level: 0
