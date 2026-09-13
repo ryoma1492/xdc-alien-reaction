@@ -8,6 +8,10 @@ on:
     tags:
       - "v*"
 
+# REQUIRED: Grants permission to create releases and attach assets
+permissions:
+  contents: write
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -54,7 +58,7 @@ jobs:
           excluded_roots = {".git", ".github", "dist"}
           excluded_files = {"LICENSE", "README.md"}
 
-          # ZIP_STORED packs files instantly without spending CPU cycles on DEFLATE compression
+          # ZIP_STORED packs files instantly without extra compression
           with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_STORED) as archive:
               for path in sorted(root.rglob("*")):
                   relative_path = path.relative_to(root)
@@ -69,10 +73,11 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
               output_file.write(f"package={output_path.name}\n")
 
-      - name: Upload .xdc artifact
-        uses: actions/upload-artifact@v4
+      # REPLACED upload-artifact WITH THIS:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.build.outputs.package }}
-          path: dist/${{ steps.build.outputs.package }}
-          if-no-files-found: error
-          compression-level: 0
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
+          prerelease: ${{ github.ref_type != 'tag' }}
+          files: dist/${{ steps.build.outputs.package }}
