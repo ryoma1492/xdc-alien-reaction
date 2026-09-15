@@ -70,23 +70,103 @@
     .end-stats { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
 
     /* Touch controls */
-    #touchControls { position: absolute; bottom: 0; left: 0; right: 0; height: 0; pointer-events: none; z-index: 50; }
-    .joyZone { position: absolute; width: 27vmin; height: 27vmin; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: rgba(0, 240, 255, 0.08); border: 1.5px solid rgba(0, 240, 255, 0.35); border-radius: 50%; pointer-events: all; touch-action: none; }
-    #moveZone { left: calc(16px + env(safe-area-inset-left, 0px)); }
-    #aimZone { right: calc(16px + env(safe-area-inset-right, 0px)); }
-    .joyThumb { width: 38%; height: 38%; background: radial-gradient(#00f0ff, #007a99); border: 1.5px solid rgba(0, 240, 255, 0.8); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 12px rgba(0, 240, 255, 0.5); }
+    #touchControls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0; /* Keeps layout clean while allowing overlays */
+  pointer-events: none;
+  z-index: 50;
+  font-family: sans-serif;
+}
 
-    #actionBtn {
-      position: absolute; bottom: calc(20vmin + env(safe-area-inset-bottom, 0px)); left: 86%; transform: translateX(-50%);
-      width: 68px; height: 68px; border-radius: 50%; pointer-events: all; touch-action: none;
-      background: rgba(255, 204, 0, 0.12); border: 2px solid rgba(255, 204, 0, 0.55);
-      color: #ffcc00; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
-      display: flex; align-items: center; justify-content: center; text-align: center;
-      transition: background 0.15s ease, transform 0.1s ease;
+.joyZone {
+  position: absolute;
+  width: 25vmin; /* Slightly scaled for better thumb reach */
+  height: 25vmin;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 240, 255, 0.08);
+  border: 1.5px solid rgba(0, 240, 255, 0.35);
+  border-radius: 50%;
+  pointer-events: all;
+  touch-action: none;
+}
+
+/* Left Joystick (Movement) */
+#moveZone {
+  left: calc(24px + env(safe-area-inset-left, 0px));
+}
+
+/* Right Joystick (Aiming/Attacking) */
+#aimZone {
+  right: calc(24px + env(safe-area-inset-right, 0px));
+}
+
+.joyThumb {
+  width: 38%;
+  height: 38%;
+  background: radial-gradient(#00f0ff, #007a99);
+  border: 1.5px solid rgba(0, 240, 255, 0.8);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+}
+
+/* Industry Standard Action Button Placement */
+/* Placed relative to the right edge, arched nicely above/left of the aim stick */
+#actionBtn {
+  position: absolute;
+  right: calc(28px + 25vmin + env(safe-area-inset-right, 0px)); /* Sits safely to the left of the aim zone */
+  bottom: calc(40px + env(safe-area-inset-bottom, 0px)); /* Aligned beautifully with the thumb sweep */
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  pointer-events: all;
+  touch-action: none;
+  background: rgba(255, 204, 0, 0.12);
+  border: 2px solid rgba(255, 204, 0, 0.55);
+  color: #ffcc00;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: background 0.15s ease, transform 0.1s ease;
+  box-sizing: border-box;
+}
+
+#actionBtn.active {
+  background: rgba(255, 204, 0, 0.45);
+  transform: scale(0.92); /* Removed duplicate translate rule causing jumping */
+}
+
+#actionBtn.ready {
+  border-color: #ffcc00;
+  box-shadow: 0 0 14px rgba(255, 204, 0, 0.5);
+}
+
+#actionBtn.hidden {
+  display: none;
+}
+
+  
+    .badge-left { background: #334155; color: #cbd5e1; margin-left: 4px; }
+    .peer-item.left { opacity: 0.5; }
+    .btn-leave {
+      width: 100%; margin-top: 10px; background: transparent; color: #94a3b8;
+      border: 1px solid #1e3a5f; padding: 10px; border-radius: 6px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 1px; font-size: 12px; font-weight: bold;
     }
-    #actionBtn.active { background: rgba(255, 204, 0, 0.45); transform: translateX(-50%) scale(0.92); }
-    #actionBtn.ready { border-color: #ffcc00; box-shadow: 0 0 14px rgba(255, 204, 0, 0.5); }
-    #actionBtn.hidden { display: none; }
+    .btn-leave:hover { border-color: #ff3366; color: #ff8fa8; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; background: #080a0f; }
   </style>
 </head>
 <body>
@@ -139,6 +219,7 @@
         <div class="peer-list" id="peer-list"></div>
 
         <button class="btn-start" id="btn-start">Deploy Squad</button>
+        <button class="btn-leave" id="btn-leave">Leave Squad</button>
         <div id="status-line">Waiting for connection…</div>
       </div>
     </div>
@@ -151,8 +232,27 @@
       </div>
     </div>
   </div>
-
+  
   <script>
+/** Alien Reaction — webxdc co-op shooter (Delta Chat / Cheogram).
+ *  Multiplayer is webxdc sendUpdate + joinRealtimeChannel only.
+ *  The in-browser mock of window.webxdc is used when the messenger is absent.
+ */
+(function initGame() {
+  const ac = new AbortController();
+  const { signal } = ac;
+  const origAdd = window.addEventListener.bind(window);
+  window.addEventListener = (type, listener, opts) => {
+    const next = typeof opts === "boolean"
+      ? { capture: opts, signal }
+      : { ...(opts && typeof opts === "object" ? opts : {}), signal };
+    return origAdd(type, listener, next);
+  };
+  let rafId = 0;
+  let stopped = false;
+  let lifecycleSeq = 0;
+
+
     // --- Browser mock for local testing (ignored inside real messengers) ---
     if (typeof window.webxdc === "undefined") {
       const mockUpdateLog = [];
@@ -222,6 +322,7 @@
         specialist: { name: "Specialist", hp: 90,  speed: 4.0, fireRate: 80,  damage: 12, color: "#ffcc00", visionNearRadius: 160, visionFarRadius: 400 },
         medic:      { name: "Medic",      hp: 100, speed: 3.5, fireRate: 180, damage: 18, color: "#33ff66", partyHealer: true, visionNearRadius: 140, visionFarRadius: 280 }
       },
+      visionOffsetPx: 40,
       fog: {
         enabled: true, color: "rgba(4,6,10,0.94)",
         defaultNearRadius: 150, defaultFarRadius: 320,
@@ -288,7 +389,7 @@
     let REVIVE_RADIUS, REVIVE_NEEDED, REVIVE_RATE, REVIVE_DECAY;
     let BLEED_MAX, DOWNED_SPEED_MULT, REVIVE_HP_FRACTION;
     let TARGET_WAVE, KILLS_PER_WAVE_STEP, WAVE_SPAWN_BASE, WAVE_SPAWN_PER_WAVE_REDUCTION, WAVE_SPAWN_MIN;
-    let CAMERA_FOLLOW_LERP;
+    let CAMERA_FOLLOW_LERP, VISION_OFFSET_PX;
     let ALIEN_DEFS_BY_TYPE = {};   // numeric type -> config entry (drone/brute/boomer/poison/hive, all shapes unified)
     let ALIEN_SPAWN_POOL = [];     // entries from ALIEN_DEFS_BY_TYPE that have a spawnWeight
     let DIFFICULTY_LEVELS, DIFFICULTY_KEYS, DEFAULT_DIFFICULTY;
@@ -304,6 +405,7 @@
       WORLD_W = cfg.world.width; WORLD_H = cfg.world.height;
       MIN_ZOOM = cfg.world.minZoom; MAX_ZOOM = cfg.world.maxZoom;
       CAMERA_FOLLOW_LERP = cfg.camera.followLerp;
+      VISION_OFFSET_PX = cfg.visionOffsetPx;
       STARTPOSITIONS = cfg.startPositions || [{ "x": WORLD_W / 2, "y": WORLD_H / 2 }];
 
       MAX_ALIENS = cfg.waves.maxConcurrentAliens;
@@ -437,7 +539,7 @@
 
     // peersMeta: id -> {name, classKey}  (from durable lobby "hello" updates)
     const peersMeta = {};
-    peersMeta[myId] = { name: selfName, classKey: selectedClassKey };
+    peersMeta[myId] = { name: selfName, classKey: selectedClassKey, left: false };
 
     let bullets = [];       // visual bullets on every client; only host applies damage from these
     let aliens = {};        // id -> {x,y,hp,maxHp,speed,radius,type}   (host: simulated; client: mirrored from snapshots)
@@ -482,7 +584,10 @@
     let aimActive = false;
     let actionHeld = false; // true while the touch Action button is pressed (keyboard uses keys["KeyF"] directly)
 
-    window.addEventListener("keydown", e => { keys[e.code] = true; });
+    window.addEventListener("keydown", e => {
+      keys[e.code] = true;
+      if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+    });
     window.addEventListener("keyup",   e => { keys[e.code] = false; });
     window.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
     window.addEventListener("mousedown", e => { if (e.button === 0) mouse.down = true; });
@@ -628,6 +733,7 @@
         case "h": handleHealthSnapshot(obj); break;
         case "i": handleInteractablesSnapshot(obj); break;
         case "e": handleMissionEnd(obj); break;
+        case "lobby": returnToLobby(); break;
       }
     }
 
@@ -713,6 +819,13 @@
         if (!d) continue;
         d.state = stateNum === 0 ? "closed" : stateNum === 1 ? "opening" : "open";
         d.holdProgress = holdPct;
+        if (d.state === "open") {
+          if (d.cfg && d.cfg.ownerRoom) openedRooms.add(d.cfg.ownerRoom);
+          if (d.cfg && d.cfg.revealsRoom) openedRooms.add(d.cfg.revealsRoom);
+        }
+      }
+      if (Array.isArray(obj.or)) {
+        for (const rid of obj.or) openedRooms.add(rid);
       }
       for (const e of (obj.tp || [])) {
         const [id, spent, holdPct] = e;
@@ -765,37 +878,126 @@
     }
 
     // --- Durable lobby / lifecycle updates ---
-    function announcePresence() {
+    function sendDurable(payload, info, extra) {
       try {
         window.webxdc.sendUpdate({
-          payload: { type: "hello", id: myId, name: selfName, classKey: selectedClassKey },
-          info: selfName + " joined the squad"
-        }, "");
+          payload,
+          info: info || "",
+          ...(extra || {})
+        }, info || "");
       } catch (e) {}
     }
 
-    function announceStart(chosenHostId, difficulty) {
+    function ensureRealtime() {
+      if (realtimeChannel) return;
+      if (!window.webxdc.joinRealtimeChannel) return;
       try {
-        window.webxdc.sendUpdate({
-          payload: { type: "start", hostId: chosenHostId, startedBy: myId, difficulty },
-          info: "Mission deployed"
-        }, "");
-      } catch (e) {}
+        realtimeChannel = window.webxdc.joinRealtimeChannel();
+        realtimeChannel.setListener(handleRealtimeData);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function dropRealtime() {
+      try { if (realtimeChannel && realtimeChannel.leave) realtimeChannel.leave(); } catch (e) {}
+      realtimeChannel = null;
+    }
+
+    function announcePresence() {
+      if (peersMeta[myId]) peersMeta[myId].left = false;
+      ensureRealtime();
+      sendDurable(
+        { type: "hello", id: myId, name: selfName, classKey: selectedClassKey },
+        selfName + " joined the squad",
+        { summary: "In lobby" }
+      );
+    }
+
+    function announceStart(chosenHostId, difficulty) {
+      lifecycleSeq++;
+      sendDurable(
+        { type: "start", hostId: chosenHostId, startedBy: myId, difficulty, seq: lifecycleSeq },
+        "Mission deployed",
+        { summary: "Mission underway" }
+      );
+    }
+
+    function announceLeave() {
+      sendDurable(
+        { type: "left", id: myId, name: selfName },
+        selfName + " left the squad"
+      );
+      dropRealtime();
+    }
+
+    function announceLobby() {
+      lifecycleSeq++;
+      sendDurable(
+        { type: "lobby", seq: lifecycleSeq, by: myId },
+        "Squad returned to drop ship",
+        { summary: "In lobby" }
+      );
+      sendRT({ t: "lobby", g: lifecycleSeq });
+    }
+
+    function returnToLobby() {
+      gameState = "LOBBY";
+      isHost = false;
+      hostId = null;
+      aliens = {};
+      bullets = [];
+      particles = [];
+      poisonPatches = {};
+      turrets = {};
+      lures = {};
+      openedRooms = new Set();
+      const endModal = document.getElementById("end-modal");
+      const lobbyModal = document.getElementById("lobby-modal");
+      if (endModal) endModal.style.display = "none";
+      if (lobbyModal) lobbyModal.style.display = "flex";
+      const banner = document.getElementById("downed-banner");
+      if (banner) banner.style.display = "none";
+      const vignette = document.getElementById("vignette");
+      if (vignette) vignette.style.boxShadow = "inset 0 0 140px 40px rgba(255,0,40,0)";
+      updatePeerListUI();
+    }
+
+    function handlePlayerLeft(id) {
+      const nid = Number(id);
+      if (nid === myId) return;
+      if (peersMeta[nid]) peersMeta[nid].left = true;
+      else peersMeta[nid] = { name: "Marine", classKey: CLASS_KEYS[0], left: true };
+      delete players[nid];
+      if (hostId === nid) {
+        hostId = currentLowestKnownId();
+        isHost = (myId === hostId);
+      }
+      if (gameState === "LOBBY") updatePeerListUI();
+      updateSquadHud();
     }
 
     function onDurableUpdate(update) {
       const payload = update && update.payload;
       if (!payload) return;
       if (payload.type === "hello") {
-        peersMeta[payload.id] = { name: payload.name, classKey: payload.classKey };
+        peersMeta[payload.id] = { name: payload.name, classKey: payload.classKey, left: false };
         if (gameState === "LOBBY") updatePeerListUI();
+      } else if (payload.type === "left") {
+        handlePlayerLeft(payload.id);
       } else if (payload.type === "start") {
-        if (gameState === "LOBBY") {
+        if (payload.seq !== undefined && payload.seq < lifecycleSeq) return;
+        if (payload.seq !== undefined) lifecycleSeq = payload.seq;
+        if (gameState === "LOBBY" || gameState === "GAMEOVER") {
           hostId = payload.hostId;
           isHost = (myId === hostId);
           activeDifficulty = DIFFICULTY_KEYS.includes(payload.difficulty) ? payload.difficulty : DEFAULT_DIFFICULTY;
           enterMission();
         }
+      } else if (payload.type === "lobby") {
+        if (payload.seq !== undefined && payload.seq < lifecycleSeq) return;
+        if (payload.seq !== undefined) lifecycleSeq = payload.seq;
+        returnToLobby();
       }
     }
 
@@ -851,7 +1053,10 @@
 
     function currentLowestKnownId() {
       let lowest = myId;
-      for (const id in peersMeta) { if (Number(id) < lowest) lowest = Number(id); }
+      for (const id in peersMeta) {
+        if (peersMeta[id] && peersMeta[id].left) continue;
+        if (Number(id) < lowest) lowest = Number(id);
+      }
       return lowest;
     }
 
@@ -865,17 +1070,26 @@
         const item = document.createElement("div");
         item.className = "peer-item";
         const isYou = Number(id) === myId;
-        const isLikelyHost = Number(id) === lowest;
+        const left = !!meta.left;
+        const isLikelyHost = !left && Number(id) === lowest;
         const cls = CLASSES[meta.classKey] || CLASSES[CLASS_KEYS[0]];
+        item.className = "peer-item" + (left ? " left" : "");
         item.innerHTML = `<span>${meta.name} (${cls.name})</span>
-          <div>${isYou ? '<span class="badge badge-you">You</span>' : ''}${isLikelyHost ? '<span class="badge badge-host">Host</span>' : ''}</div>`;
+          <div>${isYou ? '<span class="badge badge-you">You</span>' : ''}${isLikelyHost ? '<span class="badge badge-host">Host</span>' : ''}${left ? '<span class="badge badge-left">Left</span>' : ''}</div>`;
         container.appendChild(item);
       }
-      document.getElementById("status-line").textContent =
-        ids.length > 1 ? `${ids.length} marines ready` : "Waiting for squadmates… (can deploy solo)";
+      const activeCount = ids.filter(id => !peersMeta[id].left).length;
+      const status = document.getElementById("status-line");
+      if (status) {
+        status.textContent = activeCount > 1
+          ? `${activeCount} marines ready`
+          : "Waiting for squadmates… (can deploy solo)";
+      }
     }
 
     document.getElementById("btn-start").addEventListener("click", () => {
+      if (peersMeta[myId]) peersMeta[myId].left = false;
+      announcePresence();
       const chosen = currentLowestKnownId();
       hostId = chosen;
       isHost = (myId === hostId);
@@ -885,10 +1099,19 @@
     });
 
     document.getElementById("btn-again").addEventListener("click", () => {
-      document.getElementById("end-modal").style.display = "none";
-      document.getElementById("lobby-modal").style.display = "flex";
-      gameState = "LOBBY";
+      announceLobby();
+      returnToLobby();
     });
+    const btnLeave = document.getElementById("btn-leave");
+    if (btnLeave) {
+      btnLeave.addEventListener("click", () => {
+        announceLeave();
+        if (peersMeta[myId]) peersMeta[myId].left = true;
+        updatePeerListUI();
+        const status = document.getElementById("status-line");
+        if (status) status.textContent = "You left the squad — pick a class to rejoin";
+      });
+    }
 
     // --- Mission lifecycle ---
     function enterMission() {
@@ -1123,6 +1346,17 @@
         return { id: pt.id, x: pos.x, y: pos.y, room: pt.room };
       });
       openedRooms = new Set();
+      // Start rooms (and anyone already standing in a room) begin discovered so
+      // the drop-ship deck is lit; every other room stays 100% dark until entered.
+      for (const pos of (STARTPOSITIONS || [])) {
+        const rid = roomContainingPoint(pos.x, pos.y);
+        if (rid) openedRooms.add(rid);
+      }
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const rid = roomContainingPoint(p.x, p.y);
+        if (rid) openedRooms.add(rid);
+      }
     }
 
     function endMission(complete, finalKills) {
@@ -1488,17 +1722,44 @@
 
     function visionEllipseForPlayer(p) {
       const r = p.currentRadius || FOG_NEAR_DEFAULT;
-      return { forward: r * FOG_FORWARD_STRETCH, side: r * FOG_SIDE_STRETCH, angle: p.angle || 0 };
-    }
+      const angle = p.angle || 0;
 
+      // Calculate the shifted center coordinates
+      const cx = p.x + Math.cos(angle) * VISION_OFFSET_PX;
+      const cy = p.y + Math.sin(angle) * VISION_OFFSET_PX;
+
+      return { 
+        x: cx, 
+        y: cy, 
+        forward: r * FOG_FORWARD_STRETCH, 
+        side: r * FOG_SIDE_STRETCH, 
+        angle: angle 
+      };
+    }
     // 0 = fully lit, 1 = fully dark. Takes the darkest (safest) reading across every living
     // player, since being lit by even one of them makes a spot lit.
+    function isUndiscoveredRoom(x, y) {
+      const rid = roomContainingPoint(x, y);
+      
+      // If the point is inside a defined room:
+      if (rid != null) {
+        return !openedRooms.has(rid); // Dark if unopened, clear if opened
+      }
+      return true;
+    }
+
     function pointDarkness(x, y) {
+      // Undiscovered rooms are always fully dark — both for spawn gating and
+      // for anything else that asks "how dark is it here". Vision ellipses
+      // cannot leak light through a bulkhead into a room nobody has entered.
+      if (isUndiscoveredRoom(x, y)) return 1;
       let minDarkness = 1;
       for (const p of Object.values(players)) {
         if (p.isDead) continue;
         const ell = visionEllipseForPlayer(p);
-        const dx = x - p.x, dy = y - p.y;
+        
+        // Measure distance from local point to the shifted ellipse center (ell.x, ell.y)
+        const dx = x - ell.x, dy = y - ell.y;        
         const cosA = Math.cos(-ell.angle), sinA = Math.sin(-ell.angle);
         const localX = dx * cosA - dy * sinA;
         const localY = dx * sinA + dy * cosA;
@@ -1782,6 +2043,14 @@
       // frame, on every client — purely deterministic from each player's isMoving flag, so
       // it doesn't need its own network messages beyond what's already being broadcast.
       for (const p of Object.values(players)) updatePlayerVision(p);
+
+      // Every client tracks discovered rooms from live player positions so the
+      // undiscovered-room darkness overlay does not wait on a host snapshot.
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const rid = roomContainingPoint(p.x, p.y);
+        if (rid) openedRooms.add(rid);
+      }
 
       // Camera smoothly follows the local player, clamped so the view never shows past the arena edge
       const viewHalfW = (canvasW / 2) / camera.zoom;
@@ -2080,7 +2349,7 @@
         return [id, s.medicChargeUsed ? 1 : 0, pct(s.holdProgress)];
       });
 
-      sendRT({ t: "i", d: doorList, tp: turretPadList, tr: turretList, lp: lurePadList, lu: lureList, ms: medList });
+      sendRT({ t: "i", d: doorList, tp: turretPadList, tr: turretList, lp: lurePadList, lu: lureList, ms: medList, or: Array.from(openedRooms) });
     }
 
     function broadcastMissionEnd(complete) {
@@ -2458,7 +2727,10 @@ function drawProgressRing(x, y, radius, pct, color) {
       for (const p of Object.values(players)) {
         if (p.isDead) continue;
         const ell = visionEllipseForPlayer(p);
-        const screenPos = worldToScreen(p.x, p.y);
+        
+        // Translate to the shifted ellipse center
+        const screenPos = worldToScreen(ell.x, ell.y);
+        
         const rx = ell.forward * camera.zoom;
         const ry = ell.side * camera.zoom;
         if (rx <= 0 || ry <= 0) continue;
@@ -2477,7 +2749,25 @@ function drawProgressRing(x, y, radius, pct, color) {
         FOG_CTX.fill();
         FOG_CTX.restore();
       }
+      // Re-cover every undiscovered room with fully opaque darkness so vision
+      // cones cannot reveal an unopened chamber through a wall. Uses the same
+      // room polygons authored in config.json (world pixels or 0-1 fractions).
       FOG_CTX.globalCompositeOperation = "source-over";
+      FOG_CTX.fillStyle = "rgba(4, 6, 10, 1)";
+      for (const id in roomPolygonsById) {
+        if (openedRooms.has(id)) continue;
+        const pts = roomPolygonsById[id].points;
+        if (!pts || pts.length < 3) continue;
+        FOG_CTX.beginPath();
+        const s0 = worldToScreen(pts[0][0], pts[0][1]);
+        FOG_CTX.moveTo(s0.x, s0.y);
+        for (let i = 1; i < pts.length; i++) {
+          const s = worldToScreen(pts[i][0], pts[i][1]);
+          FOG_CTX.lineTo(s.x, s.y);
+        }
+        FOG_CTX.closePath();
+        FOG_CTX.fill();
+      }
 
       CTX.drawImage(FOG_CANVAS, 0, 0);
     }
@@ -2490,13 +2780,8 @@ function drawProgressRing(x, y, radius, pct, color) {
       updatePeerListUI();
 
       if (window.webxdc.joinRealtimeChannel) {
-        try {
-          realtimeChannel = window.webxdc.joinRealtimeChannel();
-          realtimeChannel.setListener(handleRealtimeData);
-        } catch (e) {
-          if (status) status.textContent = "Could not join realtime channel";
-          console.warn(e);
-        }
+        ensureRealtime();
+        if (!realtimeChannel && status) status.textContent = "Could not join realtime channel";
       } else if (status) {
         status.textContent = "Realtime not available – single player only";
       }
@@ -2517,12 +2802,42 @@ function drawProgressRing(x, y, radius, pct, color) {
     }
 
     function loop(now) {
+      if (stopped) return;
       if (gameState === "PLAYING") updateGame(now);
       renderGame();
-      requestAnimationFrame(loop);
+      rafId = requestAnimationFrame(loop);
     }
 
-    init();
+    const origInit = init;
+    init = async function () {
+      await origInit();
+      if (stopped) return;
+      origAdd("pagehide", announceLeave);
+      origAdd("beforeunload", announceLeave);
+      window.__controlsTest = {
+        getYaw: () => localPlayer.angle,
+        getSpeed: () => (localPlayer.isMoving ? (CLASSES[localPlayer.classKey] || { speed: 0 }).speed : 0),
+        setKeys: (codes) => {
+          for (const k of Object.keys(keys)) keys[k] = false;
+          for (const c of codes || []) keys[c] = true;
+        },
+        setSteer: () => {}
+      };
+      window.__gameDebug = {
+        getState: () => gameState,
+        getOpenedRooms: () => Array.from(openedRooms),
+        darknessAt: (x, y) => pointDarkness(x, y),
+        isUndiscovered: (x, y) => isUndiscoveredRoom(x, y),
+        getLocal: () => ({ x: localPlayer.x, y: localPlayer.y, hp: localPlayer.hp, classKey: localPlayer.classKey }),
+        returnToLobby,
+        enterMission,
+        roomContainingPoint
+      };
+    };
+
+    const boot = init();
+    boot.finally(() => { window.addEventListener = origAdd; });
+})();
   </script>
 </body>
 </html>
