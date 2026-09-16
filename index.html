@@ -2717,6 +2717,84 @@ function drawProgressRing(x, y, radius, pct, color) {
       renderFogOfWar();
     }
 
+    // Four world-space corners of a rotated box (wall or door), for shadow-casting.
+    function rotatedBoxCorners(box) {
+      const rad = ((box.rotation || 0) * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const hw = box.width / 2, hh = box.height / 2;
+      const local = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+      return local.map(([lx, ly]) => ({
+        x: box.x + lx * cos - ly * sin,
+        y: box.y + lx * sin + ly * cos
+      }));
+    }
+
+    // Casts a solid dark shadow from a light source (ox,oy) behind a rectangular occluder
+    // (wall or closed door), so a player's vision hole can't visually bleed past a wall it's
+    // standing near. Approximates the occluder's silhouette as its two corners with the
+    // widest angular spread as seen from the light source — exact for a convex box unless
+    // the viewer is extremely close to (or inside) it.
+    function castWallShadow(ox, oy, box, farDist) {
+      const corners = rotatedBoxCorners(box);
+      const centerAngle = Math.atan2(box.y - oy, box.x - ox);
+      let minAngle = Infinity, maxAngle = -Infinity, cMin = null, cMax = null;
+      for (const c of corners) {
+        let a = Math.atan2(c.y - oy, c.x - ox) - centerAngle;
+        while (a > Math.PI) a -= 2 * Math.PI;
+        while (a < -Math.PI) a += 2 * Math.PI;
+        if (a < minAngle) { minAngle = a; cMin = c; }
+        if (a > maxAngle) { maxAngle = a; cMax = c; }
+      }
+      if (!cMin || !cMax) return;
+
+      const dMin = { x: cMin.x - ox, y: cMin.y - oy };
+      const dMax = { x: cMax.x - ox, y: cMax.y - oy };
+      const lMin = Math.hypot(dMin.x, dMin.y) || 1;
+      const lMax = Math.hypot(dMax.x, dMax.y) || 1;
+      const farMin = { x: ox + (dMin.x / lMin) * (lMin + farDist), y: oy + (dMin.y / lMin) * (lMin + farDist) };
+      const farMax = { x: ox + (dMax.x / lMax) * (lMax + farDist), y: oy + (dMax.y / lMax) * (lMax + farDist) };
+
+      const s0 = worldToScreen(cMin.x, cMin.y);
+      const s1 = worldToScreen(farMin.x, farMin.y);
+      const s2 = worldToScreen(farMax.x, farMax.y);
+      const s3 = worldToScreen(cMax.x, cMax.y);
+      FOG_CTX.beginPath();
+      FOG_CTX.moveTo(s0.x, s0.y);
+      FOG_CTX.lineTo(s1.x, s1.y);
+      FOG_CTX.lineTo(s2.x, s2.y);
+      FOG_CTX.lineTo(s3.x, s3.y);
+      FOG_CTX.closePath();
+      FOG_CTX.fill();
+    }
+
+    // Re-darkens the area behind every wall/closed-door near enough to a player's vision
+    // to matter — the actual fix for the penumbra bleeding through walls, since the ellipse
+    // punch above is pure distance/angle and has no idea a wall is in the way.
+    function renderWallShadows() {
+      FOG_CTX.globalCompositeOperation = "source-over";
+      FOG_CTX.fillStyle = "rgba(4, 6, 10, 1)";
+      
+      for (const p of Object.values(players)) {
+        if (p.isDead) continue;
+        const ell = visionEllipseForPlayer(p);
+        const reach = Math.max(ell.forward, ell.side) * (1 + FOG_PENUMBRA);
+        const cullDist = reach + 200;
+
+        // Use actual player origin (p.x, p.y) for culling and shadow origin
+        for (const id in walls) {
+          const w = walls[id];
+          if (Math.hypot(w.x - p.x, w.y - p.y) > cullDist) continue;
+          castWallShadow(p.x, p.y, w, reach * 3);
+        }
+        
+        for (const id in doors) {
+          const d = doors[id];
+          if (d.state === "open") continue;
+          if (Math.hypot(d.x - p.x, d.y - p.y) > cullDist) continue;
+          castWallShadow(p.x, p.y, d, reach * 3);
+        }
+      }
+    }
     function renderFogOfWar() {
       if (!FOG_ENABLED) return;
       FOG_CTX.globalCompositeOperation = "source-over";
@@ -2749,6 +2827,32 @@ function drawProgressRing(x, y, radius, pct, color) {
         FOG_CTX.fill();
         FOG_CTX.restore();
       }
+
+      renderWallShadows();
+
+      // Re-black anything outside every defined room's polygon — corridors or gaps that
+      // were never modeled as a room, void outside the hull, etc. Matches isUndiscoveredRoom's
+      // "no room match = always dark" rule, which the ellipse punch above knows nothing about:
+      // a vision hole reaching into that space would otherwise stay lit with nothing to
+      // re-cover it. One evenodd-filled path (full canvas minus every room polygon) rather
+      // than trying to enumerate the void's actual shape.
+      FOG_CTX.globalCompositeOperation = "source-over";
+      FOG_CTX.fillStyle = "rgba(4, 6, 10, 1)";
+      FOG_CTX.beginPath();
+      FOG_CTX.rect(0, 0, canvasW, canvasH);
+      for (const id in roomPolygonsById) {
+        const pts = roomPolygonsById[id].points;
+        if (!pts || pts.length < 3) continue;
+        const s0 = worldToScreen(pts[0][0], pts[0][1]);
+        FOG_CTX.moveTo(s0.x, s0.y);
+        for (let i = 1; i < pts.length; i++) {
+          const s = worldToScreen(pts[i][0], pts[i][1]);
+          FOG_CTX.lineTo(s.x, s.y);
+        }
+        FOG_CTX.closePath();
+      }
+      FOG_CTX.fill("evenodd");
+
       // Re-cover every undiscovered room with fully opaque darkness so vision
       // cones cannot reveal an unopened chamber through a wall. Uses the same
       // room polygons authored in config.json (world pixels or 0-1 fractions).
